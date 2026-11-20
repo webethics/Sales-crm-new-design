@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { ArrowLeft, BarChart3, Check, ChevronDown, ChevronRight, Copy, Download, ExternalLink, Eye, FileText, Link2, Loader2, MoreVertical, Plus, RefreshCw, Trash2, User, Users, X } from "lucide-react";
 import { ago2, fmtDate, fmtDur, fmtSize, type DocLink, type PitchDoc } from "@/data/pitchhub";
-import { getFile, usePitchHub } from "@/lib/pitchhub-store";
+import { usePitchHub } from "@/lib/pitchhub-store";
+import { LIVE } from "@/lib/api/config";
 import { Button, Dialog, DialogClose, DialogContent, Select, Switch, cn } from "@/components/ui/primitives";
 import { CreateLinkSheet } from "./CreateLinkSheet";
 
@@ -109,6 +110,7 @@ export function DocumentDetail() {
   const timer = React.useRef<number | undefined>(undefined);
   const chartRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => () => window.clearTimeout(timer.current), []);
+  React.useEffect(() => { if (id) hub.loadDoc(id); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
   const flash = (m: string) => { setToast(m); window.clearTimeout(timer.current); timer.current = window.setTimeout(() => setToast(null), 3200); };
 
   const visitors = React.useMemo(() => (doc?.visitors ?? []).filter((v) => !(excludeInternal && v.internal)).sort((a, b) => +new Date(b.lastViewed) - +new Date(a.lastViewed)), [doc, excludeInternal]);
@@ -116,7 +118,7 @@ export function DocumentDetail() {
   if (!doc) {
     return (
       <div className="mx-auto max-w-[1180px] px-4 py-16 text-center sm:px-8">
-        <p className="text-[17px] font-semibold">{hub.ready ? "Document not found" : "Loading…"}</p>
+        <p className="text-[17px] font-semibold">{hub.ready && !hub.loadError ? "Document not found" : hub.loadError ?? "Loading…"}</p>
         <Link href="/pitch-hub" className="mt-4 inline-flex items-center gap-1.5 text-[13px] text-accent hover:underline"><ArrowLeft className="size-3.5" />Back to Pitch Hub</Link>
       </div>
     );
@@ -129,17 +131,16 @@ export function DocumentDetail() {
   const size = parseInt(per, 10);
   const pages = Math.max(1, Math.ceil(visitors.length / size));
   const slice = visitors.slice(page * size, page * size + size);
-  const linkUrl = (l: DocLink) => `https://${l.settings.domain}/view/${l.token}`;
-  const preview = () => {
-    const f = getFile(doc.id);
-    if (f) window.open(URL.createObjectURL(f), "_blank", "noopener");
-    else flash("Preview is only available for files uploaded in this session.");
+  const linkUrl = (l: DocLink) => l.url ?? `https://${l.settings.domain}/view/${l.token}`;
+  const open = async (save: boolean) => {
+    const f = await hub.getFile(doc.id);
+    if (!f) { flash(LIVE ? "The file could not be loaded." : `${save ? "Download" : "Preview"} is only available for files uploaded in this session.`); return; }
+    const url = URL.createObjectURL(f);
+    if (save) { const a = document.createElement("a"); a.href = url; a.download = (f as File).name || `${doc.name}.pdf`; a.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
+    else { window.open(url, "_blank", "noopener"); window.setTimeout(() => URL.revokeObjectURL(url), 60000); }
   };
-  const download = () => {
-    const f = getFile(doc.id);
-    if (!f) { flash("Download is only available for files uploaded in this session."); return; }
-    const a = document.createElement("a"); a.href = URL.createObjectURL(f); a.download = f.name; a.click(); URL.revokeObjectURL(a.href);
-  };
+  const preview = () => { void open(false); };
+  const download = () => { void open(true); };
   const copy = async (text: string) => { try { await navigator.clipboard.writeText(text); } catch {} flash("Link copied"); };
 
   return (
@@ -167,12 +168,17 @@ export function DocumentDetail() {
         </div>
       )}
 
+      {doc.status && doc.status !== "ready" && (
+        <p role={doc.status === "failed" ? "alert" : "status"} className={cn("mt-4 flex items-center gap-2 rounded-lg px-3 py-2 text-[13px]", doc.status === "failed" ? "bg-[color-mix(in_srgb,var(--err)_12%,transparent)] text-err" : "bg-surface text-fg-2")}>
+          {doc.status !== "failed" && <Loader2 className="size-3.5 animate-spin" />}{doc.status === "failed" ? doc.error || "This document could not be processed." : "The document is still being prepared. Analytics and sharing work once it is ready."}
+        </p>
+      )}
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-2.5">
         <p className="text-[13px] text-fg-3">Analytics for <span className="font-medium text-fg-2">Version 1</span> · all links</p>
         <div className="flex items-center gap-4">
-          <label className="flex cursor-pointer items-center gap-2.5 text-[13px] text-fg-2"><Switch label="Exclude internal views" checked={excludeInternal} onChange={(v) => { setExclude(v); setPage(0); }} />Exclude internal views</label>
+          <label className="flex cursor-pointer items-center gap-2.5 text-[13px] text-fg-2"><Switch label="Exclude internal views" checked={excludeInternal} onChange={(v) => { setExclude(v); setPage(0); hub.loadPageTimes(doc.id, v); }} />Exclude internal views</label>
           <span aria-hidden className="h-5 w-px bg-line-strong" />
-          <Button size="sm" onClick={() => { setRefreshing(true); window.setTimeout(() => { setRefreshing(false); hub.refresh(doc.id); flash("Data refreshed"); }, 700); }} disabled={refreshing}>
+          <Button size="sm" onClick={() => { setRefreshing(true); hub.refresh(doc.id, (error, info) => { setRefreshing(false); flash(error ? `Could not refresh: ${error}` : info ?? "Data refreshed"); }); }} disabled={refreshing}>
             {refreshing ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}Refresh
           </Button>
         </div>
@@ -226,7 +232,7 @@ export function DocumentDetail() {
                     </button>
                     <div className="flex items-center gap-3">
                       <span className={cn("rounded-full px-2.5 py-0.5 text-[12px] font-medium", l.active ? "bg-[color-mix(in_srgb,var(--ok)_16%,transparent)] text-ok" : "bg-surface-2 text-fg-2")}>{l.active ? "Active" : "Inactive"}</span>
-                      <Switch label={`${l.name} active`} checked={l.active} onChange={(v) => hub.setLinkActive(doc.id, l.id, v)} />
+                      <Switch label={`${l.name} active`} checked={l.active} onChange={(v) => hub.setLinkActive(doc.id, l.id, v, (error) => error && flash(`Could not update the link: ${error}`))} />
                       <Kebab label={`Actions for ${l.name}`}>
                         <Dropdown.Item className={menuItem} onSelect={() => copy(linkUrl(l))}><Copy className="size-4" />Copy link</Dropdown.Item>
                         <Dropdown.Item className={cn(menuItem, "text-err data-[highlighted]:bg-[color-mix(in_srgb,var(--err)_14%,transparent)] data-[highlighted]:text-err")} onSelect={() => setDelLink(l)}><Trash2 className="size-4" />Delete link</Dropdown.Item>
@@ -278,13 +284,13 @@ export function DocumentDetail() {
         </footer>
       </section>
 
-      <CreateLinkSheet open={sheet} onOpenChange={setSheet} docName={doc.name} onPreview={preview}
-        onSave={(name, s) => { const l = hub.addLink(doc.id, name, s); flash(`Link “${l.name}” created`); }} />
+      <CreateLinkSheet open={sheet} onOpenChange={setSheet} docName={doc.name} domains={hub.domains} defaultDomain={hub.defaultDomain} onPreview={preview}
+        onSave={(name, s, domain, finish) => hub.addLink(doc.id, name, s, domain, (error, l) => { finish(error); if (l) flash(`Link “${l.name}” created`); })} />
       <Dialog open={delDoc} onOpenChange={setDelDoc}>
         <DialogContent title={`Delete “${doc.name}”?`} description="The document, its links and visitor history will be removed. Shared links stop working. This cannot be undone.">
           <div className="mt-5 flex justify-end gap-2">
             <DialogClose asChild><Button type="button">Cancel</Button></DialogClose>
-            <Button variant="primary" className="!bg-err" onClick={() => { hub.removeDoc(doc.id); router.push("/pitch-hub"); }}><Trash2 className="size-3.5" />Delete</Button>
+            <Button variant="primary" className="!bg-err" onClick={() => { hub.removeDoc(doc.id, (error) => { if (error) flash(`Could not delete: ${error}`); else router.push("/pitch-hub"); }); setDelDoc(false); }}><Trash2 className="size-3.5" />Delete</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -292,7 +298,7 @@ export function DocumentDetail() {
         <DialogContent title={`Delete “${delLink?.name ?? ""}”?`} description="The link stops working and its visitor history is removed. This cannot be undone.">
           <div className="mt-5 flex justify-end gap-2">
             <DialogClose asChild><Button type="button">Cancel</Button></DialogClose>
-            <Button variant="primary" className="!bg-err" onClick={() => { if (delLink) hub.removeLink(doc.id, delLink.id); setDelLink(null); flash("Link deleted"); }}><Trash2 className="size-3.5" />Delete</Button>
+            <Button variant="primary" className="!bg-err" onClick={() => { if (delLink) hub.removeLink(doc.id, delLink.id, (error) => flash(error ? `Could not delete: ${error}` : "Link deleted")); setDelLink(null); }}><Trash2 className="size-3.5" />Delete</Button>
           </div>
         </DialogContent>
       </Dialog>

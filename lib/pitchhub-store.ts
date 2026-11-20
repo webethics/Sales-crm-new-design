@@ -1,7 +1,13 @@
 "use client";
 import * as React from "react";
-import { ME, SEED_DOCS, defaultSettings, token, type DocLink, type LinkSettings, type PitchDoc } from "@/data/pitchhub";
+import { LIVE } from "@/lib/api/config";
+import { ACCEPT, DOMAINS, ME, SEED_DOCS, defaultSettings, token, type DocLink, type LinkSettings, type PitchDoc } from "@/data/pitchhub";
+import type { PitchHubApi } from "./pitchhub-types";
+import { usePitchHubLive } from "./pitchhub-live";
 
+export type { PitchHubApi };
+
+// ── Demo data (browser storage). Used when NEXT_PUBLIC_API_MODE is not "live". ──
 const KEY = "pitchhub_store_v1";
 let cache: PitchDoc[] = [];
 let hydrated = false;
@@ -12,9 +18,9 @@ function save(d: PitchDoc[]) { cache = d; try { localStorage.setItem(KEY, JSON.s
 
 // Uploaded files only live in memory for the current session (the prototype stores metadata only).
 const files = new Map<string, File>();
-export const getFile = (id: string) => files.get(id);
+const demoDomains = DOMAINS.map((host) => ({ id: host as string | null, host }));
 
-export function usePitchHub() {
+function usePitchHubDemo(): PitchHubApi {
   const [, force] = React.useReducer((x: number) => x + 1, 0);
   React.useEffect(() => {
     if (!hydrated) { cache = load(); hydrated = true; }
@@ -24,25 +30,28 @@ export function usePitchHub() {
   const patch = (id: string, fn: (d: PitchDoc) => PitchDoc) => save(cache.map((d) => (d.id === id ? fn(d) : d)));
 
   return {
-    ready: hydrated,
-    docs: cache,
-    addDoc: (name: string, file: File, pages: number) => {
+    ready: hydrated, loadError: null, docs: cache, domains: demoDomains, defaultDomain: demoDomains[0], accept: ACCEPT, maxMb: 25, uploading: null,
+    addDoc: (name, file, pages, done) => {
       const id = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "doc"}-${Math.random().toString(36).slice(2, 6)}`;
       files.set(id, file);
-      const doc: PitchDoc = { id, name, fileName: file.name, uploadedAt: new Date().toISOString(), uploadedBy: ME, pages, size: file.size, pageTimes: Array(pages).fill(0), links: [], visitors: [] };
-      save([doc, ...cache]);
-      return id;
+      save([{ id, name, fileName: file.name, uploadedAt: new Date().toISOString(), uploadedBy: ME, pages, size: file.size, pageTimes: Array(pages).fill(0), links: [], visitors: [] }, ...cache]);
+      done();
     },
-    removeDoc: (id: string) => { files.delete(id); save(cache.filter((d) => d.id !== id)); },
-    addLink: (docId: string, name: string, settings: LinkSettings) => {
-      const link: DocLink = { id: `l-${Math.random().toString(36).slice(2, 8)}`, name, token: token(), active: true, views: 0, lastViewed: null, createdBy: ME, createdAt: new Date().toISOString(), settings };
+    removeDoc: (id, done) => { files.delete(id); save(cache.filter((d) => d.id !== id)); done?.(); },
+    loadDoc: () => {},
+    loadPageTimes: () => {},
+    addLink: (docId, name, settings: LinkSettings, domain, done) => {
+      const link: DocLink = { id: `l-${Math.random().toString(36).slice(2, 8)}`, name, token: token(), active: true, views: 0, lastViewed: null, createdBy: ME, createdAt: new Date().toISOString(), settings: { ...settings, domain: domain.host } };
       patch(docId, (d) => ({ ...d, links: [link, ...d.links] }));
-      return link;
+      done(undefined, link);
     },
-    setLinkActive: (docId: string, linkId: string, active: boolean) => patch(docId, (d) => ({ ...d, links: d.links.map((l) => (l.id === linkId ? { ...l, active } : l)) })),
-    removeLink: (docId: string, linkId: string) => patch(docId, (d) => ({ ...d, links: d.links.filter((l) => l.id !== linkId), visitors: d.visitors.filter((v) => v.linkId !== linkId) })),
-    // MOCK — simulates fresh tracking data arriving.
-    refresh: (docId: string) => patch(docId, (d) => d),
-    defaultSettings,
+    setLinkActive: (docId, linkId, active, done) => { patch(docId, (d) => ({ ...d, links: d.links.map((l) => (l.id === linkId ? { ...l, active } : l)) })); done?.(); },
+    removeLink: (docId, linkId, done) => { patch(docId, (d) => ({ ...d, links: d.links.filter((l) => l.id !== linkId), visitors: d.visitors.filter((v) => v.linkId !== linkId) })); done?.(); },
+    // Demo: nothing new can arrive.
+    refresh: (docId, done) => { patch(docId, (d) => d); done(); },
+    getFile: async (id) => files.get(id) ?? null,
   };
 }
+
+export const usePitchHub: () => PitchHubApi = LIVE ? usePitchHubLive : usePitchHubDemo;
+export { defaultSettings };
