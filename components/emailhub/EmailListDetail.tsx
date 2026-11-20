@@ -2,19 +2,18 @@
 import * as React from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronRight, Send, ExternalLink, Loader2, RotateCw, Sparkles, Trash2, X } from "lucide-react";
-import { PROMPTS, type Reviewer } from "@/data/emailhub";
-import { PLATFORMS } from "@/data/linkedin";
+import { AlertCircle, ArrowLeft, Check, ChevronRight, Send, ExternalLink, Loader2, RotateCw, Sparkles, Trash2, X } from "lucide-react";
+import type { EmailSet, Reviewer } from "@/data/emailhub";
 import { ekey, useEmailHub } from "@/lib/emailhub-store";
+import { useCampaigns, useGenOptions, useGenSelection } from "@/lib/emailhub-options";
 import { Button, Checkbox, Dialog, DialogClose, DialogContent, Field, Select, cn } from "@/components/ui/primitives";
 import { MessageBox } from "@/components/linkedin/LinkedInList";
-import { GenFields, GenerateDialog, StatusTag, fmtDate, platformOf, th } from "./EmailHubList";
+import { GenFields, GenerateDialog, StatusTag, fmtDate, th } from "./EmailHubList";
 
 const PAGE = 50;
-// MOCK campaigns — replace with the campaigns returned by the Instantly API.
-const CAMPAIGNS = ["Review outreach - Q4", "Cold outreach - General", "Founders sequence"];
 
 function ConfidenceTag({ v }: { v: number }) {
+  if (v < 0) return <span className="text-[13px] text-fg-3">—</span>;
   const tone = v >= 75 ? "bg-[color-mix(in_srgb,var(--ok)_16%,transparent)] text-ok" : v >= 40 ? "bg-[color-mix(in_srgb,var(--warn)_16%,transparent)] text-warn" : "bg-[color-mix(in_srgb,var(--err)_16%,transparent)] text-err";
   return <span className={cn("num inline-flex h-6 items-center rounded-full px-2.5 text-[12px] font-medium", tone)}>{v}%</span>;
 }
@@ -32,7 +31,10 @@ export function EmailListDetail() {
   const [delOne, setDelOne] = React.useState<string | null>(null);
   const [pushOpen, setPushOpen] = React.useState(false);
   const [pushing, setPushing] = React.useState(false);
-  const [campaign, setCampaign] = React.useState(CAMPAIGNS[0]);
+  const [campaignName, setCampaignName] = React.useState("");
+  const campaigns = useCampaigns(pushOpen);
+  React.useEffect(() => { if (campaigns.items.length && !campaigns.items.some((c) => c.name === campaignName)) setCampaignName(campaigns.items[0].name); }, [campaigns.items]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { if (id) hub.loadList(id); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [toast, setToast] = React.useState<string | null>(null);
   const timer = React.useRef<number | undefined>(undefined);
   React.useEffect(() => () => window.clearTimeout(timer.current), []);
@@ -53,6 +55,8 @@ export function EmailListDetail() {
   const some = visible.some((r) => selected.includes(r.id));
   const toggle = (rid: string) => setSelected((s) => (s.includes(rid) ? s.filter((x) => x !== rid) : [...s, rid]));
   const busy = hub.isBusy(list.id) === "Generating";
+  const loadingRows = hub.loading(list.id) && rows.length === 0;
+  const picked = campaigns.items.find((c) => c.name === campaignName);
   const status = hub.status(list);
 
   return (
@@ -62,7 +66,7 @@ export function EmailListDetail() {
         <div className="flex flex-wrap items-end justify-between gap-3 pb-4 pt-2">
           <div>
             <h1 className="flex flex-wrap items-center gap-3 text-[22px] font-semibold tracking-[-0.02em]">{list.name}<StatusTag s={status} /></h1>
-            <p className="num mt-0.5 text-[13px] text-fg-3" aria-live="polite">Uploaded {fmtDate(list.uploadedAt)} · {rows.length} row{rows.length === 1 ? "" : "s"}{selected.length > 0 && ` · ${selected.length} selected`}</p>
+            <p className="num mt-0.5 text-[13px] text-fg-3" aria-live="polite">Uploaded {fmtDate(list.uploadedAt)} · {list.rowCount ?? rows.length} row{(list.rowCount ?? rows.length) === 1 ? "" : "s"}{selected.length > 0 && ` · ${selected.length} selected`}</p>
           </div>
           <div className="flex items-center gap-2">
             {selected.length > 0 && <Button onClick={() => setDelOpen(true)} className="!text-err"><Trash2 className="size-3.5" />Delete ({selected.length})</Button>}
@@ -72,6 +76,7 @@ export function EmailListDetail() {
             </Button>
           </div>
         </div>
+        {hub.loadError && <div role="alert" className="mb-3 flex items-start gap-2 rounded-lg bg-[color-mix(in_srgb,var(--err)_12%,transparent)] px-3 py-2 text-[13px] text-err"><AlertCircle className="mt-0.5 size-4 shrink-0" />{hub.loadError}</div>}
         {toast && (
           <div role="status" className="flex items-center justify-between rounded-lg bg-accent-soft px-3 py-2 text-[13px] text-accent">
             <span className="flex items-center gap-1.5"><Check className="size-3.5" />{toast}</span>
@@ -136,11 +141,12 @@ export function EmailListDetail() {
         {shown < rows.length && (
           <div className="flex justify-center py-5"><Button onClick={() => setShown((n) => n + PAGE)}>Show more ({rows.length - shown} remaining)</Button></div>
         )}
-        {rows.length === 0 && <p className="py-14 text-center text-[13px] text-fg-3">No reviewers in this list.</p>}
+        {loadingRows && <p className="flex items-center justify-center gap-2 py-14 text-[13px] text-fg-3"><Loader2 className="size-4 animate-spin" />Loading reviewers…</p>}
+        {!loadingRows && rows.length === 0 && <p className="py-14 text-center text-[13px] text-fg-3">{list.failed ? `This file could not be imported: ${list.failed}` : "No reviewers in this list."}</p>}
       </div>
 
       <GenerateDialog open={genOpen} onOpenChange={setGenOpen} count={selected.length} noun="reviewer"
-        onGenerate={(prompt, model) => { const n = selected.length; hub.generate(list.id, selected, prompt, model, () => flash(`Generated content for ${n} reviewer${n === 1 ? "" : "s"} with ${model}`)); setSelected([]); }} />
+        onGenerate={(sel) => { const n = selected.length; hub.generate(list.id, selected, sel, (error) => flash(error ?? `Generated content for ${n} reviewer${n === 1 ? "" : "s"} with ${sel.modelLabel}`)); setSelected([]); }} />
       <Dialog open={pushOpen} onOpenChange={setPushOpen}>
         <DialogContent title="Push to Instantly" description={`Add the selected reviewers to an Instantly campaign with their generated emails.`} className="w-[min(92vw,460px)]">
           {(() => {
@@ -148,15 +154,16 @@ export function EmailListDetail() {
             return (
               <>
                 <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-4">
-                  <Field label="Campaign" htmlFor="push-campaign"><Select id="push-campaign" value={campaign} onValueChange={setCampaign} options={CAMPAIGNS} /></Field>
+                  <Field label="Campaign" htmlFor="push-campaign"><Select id="push-campaign" value={campaignName} placeholder={campaigns.loading ? "Loading campaigns…" : "No draft or paused campaigns"} onValueChange={setCampaignName} options={campaigns.items.map((c) => c.name)} /></Field>
+                  {campaigns.error && <p role="alert" className="text-[13px] text-err">{campaigns.error}</p>}
                   <p className="text-[13px] text-fg-2"><span className="num font-medium text-fg">{ready}</span> of <span className="num font-medium text-fg">{selected.length}</span> selected reviewers have generated emails.{ready < selected.length && " The rest will be skipped."}</p>
                 </div>
                 <div className="mt-5 flex justify-end gap-2">
                   <DialogClose asChild><Button type="button">Cancel</Button></DialogClose>
-                  <Button variant="primary" disabled={ready === 0 || pushing} onClick={() => {
+                  <Button variant="primary" disabled={ready === 0 || pushing || !picked} onClick={() => {
                     const ids = selected.filter((rid) => hub.emails[ekey(list.id, rid)]);
                     setPushing(true);
-                    hub.pushToInstantly(list.id, ids, campaign, () => { setPushing(false); setPushOpen(false); setSelected([]); flash(`Pushed ${ids.length} lead${ids.length === 1 ? "" : "s"} to Instantly (${campaign})`); });
+                    hub.pushToInstantly(list.id, ids, picked!, (error) => { setPushing(false); setPushOpen(false); setSelected([]); flash(error ?? `Pushed ${ids.length} lead${ids.length === 1 ? "" : "s"} to Instantly (${picked!.name})`); });
                   }}>{pushing ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}{pushing ? "Pushing…" : "Push to Instantly"}</Button>
                 </div>
               </>
@@ -168,7 +175,7 @@ export function EmailListDetail() {
         <DialogContent title={`Delete ${rows.find((x) => x.id === delOne)?.name ?? "reviewer"}?`} description="This reviewer and their generated emails will be removed from the list. This cannot be undone.">
           <div className="mt-5 flex justify-end gap-2">
             <DialogClose asChild><Button type="button">Cancel</Button></DialogClose>
-            <Button variant="primary" className="!bg-err" onClick={() => { if (delOne) { hub.removeReviewers(list.id, [delOne]); setSelected((x) => x.filter((i) => i !== delOne)); if (expanded === delOne) setExpanded(null); if (rows.length === 1) router.push("/emailhub"); } setDelOne(null); flash("Reviewer deleted"); }}><Trash2 className="size-3.5" />Delete</Button>
+            <Button variant="primary" className="!bg-err" onClick={() => { if (delOne) { const last = rows.length === 1; hub.removeReviewers(list.id, [delOne], (error) => { flash(error ? `Could not delete: ${error}` : "Reviewer deleted"); if (!error && last) router.push("/emailhub"); }); setSelected((x) => x.filter((i) => i !== delOne)); if (expanded === delOne) setExpanded(null); } setDelOne(null); }}><Trash2 className="size-3.5" />Delete</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -176,7 +183,7 @@ export function EmailListDetail() {
         <DialogContent title={`Delete ${selected.length} reviewer${selected.length === 1 ? "" : "s"}?`} description="The selected reviewers and their generated emails will be removed from this list. This cannot be undone.">
           <div className="mt-5 flex justify-end gap-2">
             <DialogClose asChild><Button type="button">Cancel</Button></DialogClose>
-            <Button variant="primary" className="!bg-err" onClick={() => { const n = selected.length; hub.removeReviewers(list.id, selected); setSelected([]); setExpanded(null); setDelOpen(false); flash(`Deleted ${n} reviewer${n === 1 ? "" : "s"}`); if (n === rows.length) router.push("/emailhub"); }}><Trash2 className="size-3.5" />Delete</Button>
+            <Button variant="primary" className="!bg-err" onClick={() => { const n = selected.length; hub.removeReviewers(list.id, selected, (error) => { flash(error ? `Could not delete: ${error}` : `Deleted ${n} reviewer${n === 1 ? "" : "s"}`); if (!error && n === rows.length) router.push("/emailhub"); }); setSelected([]); setExpanded(null); setDelOpen(false); }}><Trash2 className="size-3.5" />Delete</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -184,28 +191,42 @@ export function EmailListDetail() {
   );
 }
 
-function EmailPanel({ listId, reviewer, set }: { listId: string; reviewer: Reviewer; set?: { emails: string[]; prompt: string; model: string; at: string } }) {
+function EmailPanel({ listId, reviewer, set }: { listId: string; reviewer: Reviewer; set?: EmailSet }) {
   const hub = useEmailHub();
-  const [template, setTemplate] = React.useState(set?.prompt ?? PROMPTS[0]);
-  const [platform, setPlatform] = React.useState(platformOf(set?.model));
-  const [model, setModel] = React.useState(set?.model ?? PLATFORMS[platformOf(set?.model)][0]);
+  const opts = useGenOptions();
+  const gen = useGenSelection(opts);
+  // Preselect what this lead was last generated with (the real API stores ids, the demo data stores labels).
+  const applied = React.useRef(false);
+  React.useEffect(() => {
+    if (applied.current || !opts.ready || !set) return;
+    const tmpl = opts.templates.find((t) => t.id === set.prompt || t.label === set.prompt);
+    const plat = opts.platforms.find((p) => p.models.some((m) => m.id === set.model || m.label === set.model));
+    const model = plat?.models.find((m) => m.id === set.model || m.label === set.model);
+    if (tmpl) gen.setTemplate(tmpl.label);
+    if (plat && model) { gen.setPlatform(plat.label); gen.setModel(model.label); }
+    applied.current = true;
+  }, [opts, set]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [error, setError] = React.useState<string | null>(null);
   const busy = hub.isBusy(listId) === "Generating";
+  const sel = gen.selection();
+  const run = () => { setError(null); hub.generate(listId, [reviewer.id], sel, (e) => e && setError(e)); };
   return (
     <div className="grid min-w-0 gap-4 rounded-xl border border-[color-mix(in_srgb,var(--accent)_22%,var(--line))] bg-[color-mix(in_srgb,var(--accent)_4%,var(--bg))] p-4">
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] items-end gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
-        <Field label="Template" htmlFor={`pr-${reviewer.id}`}><Select id={`pr-${reviewer.id}`} value={template} onValueChange={setTemplate} options={PROMPTS} /></Field>
-        <Field label="AI platform" htmlFor={`pf-${reviewer.id}`}><Select id={`pf-${reviewer.id}`} value={platform} onValueChange={(v) => { setPlatform(v); setModel(PLATFORMS[v][0]); }} options={Object.keys(PLATFORMS)} /></Field>
-        <Field label="Model" htmlFor={`cm-${reviewer.id}`}><Select id={`cm-${reviewer.id}`} value={model} onValueChange={setModel} options={PLATFORMS[platform]} /></Field>
-        <Button variant="primary" disabled={busy} onClick={() => hub.generate(listId, [reviewer.id], template, model)}>
+        <Field label="Template" htmlFor={`pr-${reviewer.id}`}><Select id={`pr-${reviewer.id}`} value={gen.template} placeholder={opts.ready ? "No prompts available" : "Loading…"} onValueChange={gen.setTemplate} options={opts.templates.map((t) => t.label)} /></Field>
+        <Field label="AI platform" htmlFor={`pf-${reviewer.id}`}><Select id={`pf-${reviewer.id}`} value={gen.platform} placeholder={opts.ready ? "No AI platform configured" : "Loading…"} onValueChange={gen.setPlatform} options={opts.platforms.map((p) => p.label)} /></Field>
+        <Field label="Model" htmlFor={`cm-${reviewer.id}`}><Select id={`cm-${reviewer.id}`} value={gen.model} placeholder="Choose a model" onValueChange={gen.setModel} options={gen.models} /></Field>
+        <Button variant="primary" disabled={busy || !sel.templateId || !sel.provider || !sel.modelId} onClick={run}>
           {busy ? <Loader2 className="size-3.5 animate-spin" /> : set ? <RotateCw className="size-3.5" /> : <Sparkles className="size-3.5" />}{busy ? "Generating…" : set ? "Regenerate" : "Generate emails"}
         </Button>
       </div>
+      {(error || opts.error) && <p role="alert" className="text-[13px] text-err">{error ?? opts.error}</p>}
       <div className="min-w-0">
         {set ? (
           <div className="grid gap-3 md:grid-cols-2">
             {set.emails.map((t, i) => (
               <MessageBox key={i} title={`Email ${i + 1}`} meta={i === 0 ? `Generated ${set.at} · ${set.model}` : i === 3 ? "Final follow-up" : `Follow-up ${i}`} text={t} busy={busy}
-                onSave={(nt) => hub.setEmails(listId, reviewer.id, { ...set, emails: set.emails.map((x, j) => (j === i ? nt : x)) })} />
+                onSave={(nt) => { setError(null); hub.setEmails(listId, reviewer.id, { ...set, emails: set.emails.map((x, j) => (j === i ? nt : x)) }, (e) => e && setError(e)); }} />
             ))}
           </div>
         ) : (

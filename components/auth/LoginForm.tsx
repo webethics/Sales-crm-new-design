@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { DEACTIVATED_MESSAGE, hasErrors, validateLogin } from "@/lib/auth-rules";
 import { auth, useAuth } from "@/lib/auth-store";
+import { LIVE } from "@/lib/api/config";
 import { Button, Field, TextInput } from "@/components/ui/primitives";
 import { AuthShell, Notice, PasswordField } from "./AuthShell";
 
@@ -30,12 +31,9 @@ export function LoginForm() {
     setErrors(v); setFormError(null); setDeactivated(false);
     if (hasErrors(v)) return;
     setLoading(true);
-    window.setTimeout(() => {
-      const r = auth.signIn(email, password);
-      setLoading(false);
-      if (!r.ok) { setFormError(r.error); return; }
-      router.replace(dest);
-    }, 450);
+    const finish = (r: { ok: boolean; error?: string }) => { setLoading(false); if (!r.ok) { setFormError(r.error ?? "Sign in failed"); return; } router.replace(dest); };
+    if (LIVE) { void auth.signInLive(email, password).then(finish); return; }
+    window.setTimeout(() => finish(auth.signIn(email, password)), 450);
   };
 
   return (

@@ -1,6 +1,8 @@
 "use client";
 import * as React from "react";
 import { SEED_USERS, type AppUser } from "@/data/auth";
+import { LIVE } from "@/lib/api/config";
+import { getSupabase } from "@/lib/api/supabase";
 import { DEACTIVATED_MESSAGE, DUPLICATE_EMAIL_MESSAGE, INVALID_LOGIN_MESSAGE, LAST_ADMIN_MESSAGE, type Role } from "@/lib/auth-rules";
 
 // MOCK auth layer shaped like the existing system's API (Supabase Auth + /api/admin/users).
@@ -48,7 +50,16 @@ export const auth = {
     const u: AppUser = { id: `u-${rid()}`, full_name: full_name.trim(), email: norm(email), role: "user", is_active: true, created_at: new Date().toISOString(), password };
     commit({ users: [...cache.users, u] }); return ok();
   },
-  signOut() { commit({ session: null }); },
+  signOut() {
+    if (LIVE) { void getSupabase().auth.signOut().finally(() => { live = { ready: true, user: null }; emit(); }); return; }
+    commit({ session: null });
+  },
+  /** Real sign-in against the Supabase project the existing backend uses: the session cookie it sets is what the backend's API reads. */
+  async signInLive(email: string, password: string): Promise<Result> {
+    const { error } = await getSupabase().auth.signInWithPassword({ email: email.trim(), password });
+    if (error) return fail(error.code === "user_banned" || /banned/i.test(error.message) ? DEACTIVATED_MESSAGE : error.message, 400);
+    await loadLive(); return live.user ? ok() : fail(DEACTIVATED_MESSAGE, 403);
+  },
   /** Always succeeds (never reveals whether an email exists). The token is returned for the demo only: a real system emails the link. */
   requestReset(email: string): Result<string | null> {
     const u = cache.users.find((x) => norm(x.email) === norm(email));
@@ -102,7 +113,30 @@ export const auth = {
   },
 };
 
-export function useAuth() {
+// ── Live mode: the user comes from the Supabase session and the `profiles` table (role, is_active), like the existing app's proxy. ──
+let live: { ready: boolean; user: PublicUser | null } = { ready: false, user: null };
+async function loadLive() {
+  const sb = getSupabase();
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) { live = { ready: true, user: null }; emit(); return; }
+  const { data: p } = await sb.from("profiles").select("full_name, email, role, is_active, created_at").eq("id", user.id).maybeSingle();
+  const active = p?.is_active !== false;
+  if (!active) { await sb.auth.signOut(); live = { ready: true, user: null }; emit(); return; }
+  live = { ready: true, user: { id: user.id, full_name: p?.full_name ?? "", email: p?.email ?? user.email ?? "", role: p?.role === "admin" ? "admin" : "user", is_active: true, created_at: p?.created_at ?? user.created_at } };
+  emit();
+}
+function useAuthLive() {
+  const [, force] = React.useReducer((x: number) => x + 1, 0);
+  React.useEffect(() => {
+    listeners.add(force);
+    void loadLive();
+    const { data: sub } = getSupabase().auth.onAuthStateChange(() => { void loadLive(); });
+    return () => { listeners.delete(force); sub.subscription.unsubscribe(); };
+  }, []);
+  return { ready: live.ready, user: live.user, users: [] as PublicUser[], isAdmin: live.user?.role === "admin" };
+}
+
+function useAuthDemo() {
   const [, force] = React.useReducer((x: number) => x + 1, 0);
   React.useEffect(() => {
     hydrate(); listeners.add(force); force();
@@ -116,3 +150,6 @@ export function useAuth() {
   React.useEffect(() => { if (deactivated) { try { sessionStorage.setItem("deactivated", "1"); } catch {} auth.signOut(); } }, [deactivated]);
   return { ready: cache.ready, user: me && me.is_active ? strip(me) : null, users: cache.users.map(strip), isAdmin: !!me && me.is_active && me.role === "admin" };
 }
+
+/** The mode is fixed per build, so the hook order never changes. */
+export const useAuth: () => { ready: boolean; user: PublicUser | null; users: PublicUser[]; isAdmin: boolean } = LIVE ? useAuthLive : useAuthDemo;

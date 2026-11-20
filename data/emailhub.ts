@@ -1,7 +1,7 @@
 // MOCK DATA — replace with the EmailHub upload / generation API.
 export type Reviewer = { id: string; name: string; title: string; company: string; country: string; confidence: number; linkedin: string };
-export type EList = { id: string; name: string; uploadedAt: string; reviewers: Reviewer[] };
-export type EmailSet = { emails: string[]; prompt: string; model: string; at: string };
+export type EList = { id: string; name: string; uploadedAt: string; reviewers: Reviewer[]; rowCount?: number; validRows?: number; generated?: number; running?: boolean; failed?: string | null };
+export type EmailSet = { emails: string[]; subjects?: string[]; prompt: string; model: string; at: string };
 
 export const PROMPTS = [
   "Review Outreach - 4 Email Sequence",
