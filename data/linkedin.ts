@@ -4,6 +4,9 @@ export type Profile = {
   id: string; name: string; headline: string; role: string; company: string; linkedin: string; location: string;
   email: string | null; about: string | null; current: Position; previous: Position[];
   education: { school: string; detail: string; years: string }[]; skills: string[]; scrapedAt: string; added: string;
+  // Real backend only: scraping state, data-source details and the profile's import history.
+  enrichment?: string; enrichmentError?: string | null; apifyRun?: string | null; dataset?: string | null; emailSearched?: string | null;
+  imports?: { source: string; name: string | null; at: string }[]; detailLoaded?: boolean;
 };
 
 export const PLATFORMS: Record<string, string[]> = {
