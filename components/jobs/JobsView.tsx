@@ -1,10 +1,10 @@
 "use client";
 import * as React from "react";
-import { Award, Bookmark, CheckCircle2, Check, Clock, Download, Gem, PanelLeftClose, PanelLeftOpen, RefreshCw, RotateCcw, Search, X } from "lucide-react";
+import { Award, Bookmark, CheckCircle2, Check, Clock, Download, PanelLeftClose, PanelLeftOpen, PlayCircle, Star, RotateCcw, Search, X } from "lucide-react";
 import type { FilterState, Job, JobStatus, SortDirection, SortField } from "@/lib/types";
 import { INITIAL_JOBS, TOTAL_AVAILABLE, generateJobs } from "@/data/jobs";
 import { DATE_OPTIONS, LOCATION_OPTIONS, MAGIC_OPTIONS, STATUS_OPTIONS, TECH_OPTIONS, activeFilterCount, exportJobsCsv, filterJobs, initialFilterState, sortJobs } from "@/lib/jobs-utils";
-import { Button, IconButton, Select, cn } from "@/components/ui/primitives";
+import { Button, Dialog, DialogClose, DialogContent, Field, IconButton, Select, TextInput, cn } from "@/components/ui/primitives";
 import { JobTable } from "./JobTable";
 import { ProposalSheet } from "./ProposalSheet";
 
@@ -36,6 +36,11 @@ function Chips({ f, set, onClear }: { f: FilterState; set: (p: Partial<FilterSta
   );
 }
 
+function presetName(f: FilterState) {
+  const parts = chipsFor(f, () => {}).map((c) => c.label.replace(/[“”]/g, ""));
+  return parts.length ? parts.join(" · ") : "All jobs";
+}
+
 function FilterRow({ id, label, active, value, options, onChange }: { id: string; label: string; active: boolean; value: string; options: string[]; onChange: (v: string) => void }) {
   return (
     <div className="grid gap-1.5">
@@ -58,6 +63,9 @@ export function JobsView() {
   const [isRefreshing, setRefreshing] = React.useState(false);
   const [isLoadingMore, setLoadingMore] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  const [nameOpen, setNameOpen] = React.useState(false);
+  const [presetLabel, setPresetLabel] = React.useState("");
+  const [presets, setPresets] = React.useState<{ id: string; name: string; filters: FilterState }[]>([]);
   const [proposalJob, setProposalJob] = React.useState<Job | null>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
@@ -69,8 +77,12 @@ export function JobsView() {
   // Hydrate saved filters once on mount.
   React.useEffect(() => {
     try {
-      const raw = localStorage.getItem("saved_job_filters");
-      if (raw) setFilters({ ...initialFilterState, ...JSON.parse(raw) });
+      const raw = localStorage.getItem("saved_job_filter_sets");
+      if (raw) setPresets(JSON.parse(raw));
+      else {
+        const old = localStorage.getItem("saved_job_filters"); // migrate the earlier single saved filter
+        if (old) { const f = { ...initialFilterState, ...JSON.parse(old) }; setPresets([{ id: "legacy", name: presetName(f), filters: f }]); }
+      }
     } catch {}
     if (window.matchMedia("(max-width: 1023px)").matches) setShowFilters(false);
   }, []);
@@ -91,9 +103,13 @@ export function JobsView() {
     setLoadingMore(true);
     window.setTimeout(() => { setJobs((p) => [...p, ...generateJobs(p.length, Math.min(15, TOTAL_AVAILABLE - p.length))]); setLoadingMore(false); }, 600);
   }, []);
+  const persist = (next: typeof presets) => { setPresets(next); try { localStorage.setItem("saved_job_filter_sets", JSON.stringify(next)); } catch {} };
+  const openSave = () => { if (activeCount === 0) return; setPresetLabel(presetName(filters)); setNameOpen(true); };
   const saveFilters = () => {
-    try { localStorage.setItem("saved_job_filters", JSON.stringify(filters)); } catch {}
-    setSaved(true); window.setTimeout(() => setSaved(false), 2000);
+    const name = presetLabel.trim();
+    if (!name) return;
+    persist([...presets.filter((x) => x.name.toLowerCase() !== name.toLowerCase()), { id: Math.random().toString(36).slice(2, 9), name, filters }]);
+    setNameOpen(false); setSaved(true); window.setTimeout(() => setSaved(false), 2000);
   };
   const setStatus = (ids: string[], status: JobStatus) => setJobs((p) => p.map((j) => (ids.includes(j.id) ? { ...j, status } : j)));
   const toggleSelect = (id: string) => setSelectedIds((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
@@ -122,8 +138,10 @@ export function JobsView() {
               className="h-8 w-full rounded-lg bg-surface pl-8 pr-8 text-[13px] placeholder:text-fg-3 focus-visible:bg-bg focus-visible:shadow-[inset_0_0_0_1.5px_var(--accent)] focus-visible:outline-none [&::-webkit-search-cancel-button]:hidden" />
             {filters.search && <button type="button" aria-label="Clear search" onClick={() => set({ search: "" })} className="absolute right-1.5 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-full text-fg-3 hover:bg-surface-2 hover:text-fg"><X className="size-3" /></button>}
           </div>
-          <Button aria-pressed={creamOn} onClick={() => { set({ cream: creamOn ? "All" : "Cream only" }); refresh(); }} className={cn(creamOn && "!bg-accent-soft !text-accent")}><Gem className="size-3.5" />Fetch Cream Jobs</Button>
-          <Button onClick={refresh} disabled={isRefreshing}><RefreshCw className={cn("size-3.5", isRefreshing && "animate-spin")} />{isRefreshing ? "Refreshing…" : "Refresh"}</Button>
+          <div className="ml-auto flex items-center gap-2">
+            <Button aria-pressed={creamOn} onClick={() => { set({ cream: creamOn ? "All" : "Cream only" }); refresh(); }} className={cn(creamOn && "!bg-accent-soft !text-accent")}><Star className="size-3.5" />Fetch Cream Jobs</Button>
+            <Button onClick={refresh} disabled={isRefreshing}><PlayCircle className={cn("size-3.5", isRefreshing && "animate-pulse")} />{isRefreshing ? "Fetching…" : "Fetch Jobs"}</Button>
+          </div>
         </div>
         {!showFilters && activeCount > 0 && <div className="mt-3"><Chips f={filters} set={set} onClear={reset} /></div>}
       </div>
@@ -138,6 +156,23 @@ export function JobsView() {
               <h2 className="flex items-center gap-2 text-[13px] font-semibold">Filters{activeCount > 0 && <span className="num rounded-full bg-accent px-1.5 text-[11px] font-semibold text-on-accent">{activeCount}</span>}</h2>
               <Button variant="ghost" size="sm" onClick={reset} disabled={activeCount === 0}><RotateCcw className="size-3" />Reset</Button>
             </div>
+            <div className="grid gap-2">
+                <p className="text-[11px] uppercase tracking-wider text-fg-3">Saved filters</p>
+                {presets.length === 0 && <p className="text-[12px] leading-snug text-fg-3">None yet. Choose filters below and click Save Filters.</p>}
+                <div className="flex flex-wrap gap-1.5">
+                  {presets.map((pr) => {
+                    const on = JSON.stringify({ ...initialFilterState, ...pr.filters }) === JSON.stringify(filters);
+                    return (
+                      <span key={pr.id} className={cn("inline-flex h-7 max-w-full items-center rounded-full pl-1 pr-1 text-[12px] font-medium", on ? "bg-accent text-on-accent" : "bg-surface text-fg-2")}>
+                        <button type="button" aria-pressed={on} onClick={() => setFilters({ ...initialFilterState, ...pr.filters })} className="inline-flex min-w-0 items-center gap-1.5 rounded-full px-2 hover:underline">
+                          <Bookmark className="size-3 shrink-0" /><span className="truncate">{pr.name}</span>
+                        </button>
+                        <button type="button" aria-label={`Delete saved filter ${pr.name}`} onClick={() => persist(presets.filter((x) => x.id !== pr.id))} className="grid size-5 shrink-0 place-items-center rounded-full hover:bg-black/10"><X className="size-3" /></button>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
             {activeCount > 0 && (
               <div className="grid gap-2"><p className="text-[11px] uppercase tracking-wider text-fg-3">Selected filters</p><Chips f={filters} set={set} onClear={reset} /></div>
             )}
@@ -146,10 +181,22 @@ export function JobsView() {
             <FilterRow id="f-loc" label="Client Location" active={filters.location !== initialFilterState.location} value={filters.location} options={LOCATION_OPTIONS} onChange={(v) => set({ location: v })} />
             <FilterRow id="f-status" label="Status" active={filters.status !== initialFilterState.status} value={filters.status} options={STATUS_OPTIONS} onChange={(v) => set({ status: v })} />
             <FilterRow id="f-date" label="Date Posted" active={filters.date !== "All Time"} value={filters.date} options={DATE_OPTIONS} onChange={(v) => set({ date: v as FilterState["date"] })} />
-            <Button onClick={saveFilters} className="w-full">{saved ? <><Check className="size-3.5 text-ok" />Filters Saved</> : <><Bookmark className="size-3.5" />Save Filters</>}</Button>
+            <Button onClick={openSave} disabled={activeCount === 0} className="w-full">{saved ? <><Check className="size-3.5 text-ok" />Filters Saved</> : <><Bookmark className="size-3.5" />Save Filters</>}</Button>
             <p className="num text-center text-[12px] text-fg-3">Showing {sorted.length} of {jobs.length}</p>
           </div>
         </aside>
+
+        <Dialog open={nameOpen} onOpenChange={setNameOpen}>
+          <DialogContent title="Save filters" description="Give this filter set a name so you can apply it again later.">
+            <form onSubmit={(e) => { e.preventDefault(); saveFilters(); }}>
+              <div className="mt-4"><Field label="Name" htmlFor="preset-name"><TextInput id="preset-name" autoFocus value={presetLabel} maxLength={40} onChange={(e) => setPresetLabel(e.target.value)} /></Field></div>
+              <div className="mt-5 flex justify-end gap-2">
+                <DialogClose asChild><Button type="button">Cancel</Button></DialogClose>
+                <Button type="submit" variant="primary" disabled={!presetLabel.trim()}>Save</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         {/* Table */}
         <div ref={scrollRef} className="min-h-0 min-w-0 flex-1 overflow-auto lg:border-l lg:border-line">

@@ -4,44 +4,31 @@
 ```powershell
 npm install
 npm run dev -- -p 3100   # http://localhost:3100  (/ redirects to /jobs)
-npm run build            # production build (verified passing)
+npm run build            # production build
 ```
 Stack: Next.js 16 (App Router), React 19, TypeScript, Tailwind 4, Radix primitives, Lucide. No chart library (custom SVG).
 
+## Modules
+| Route | Module | Notes |
+|---|---|---|
+| `/dashboard` | Dashboard | Upwork analytics only: totals, last run, jobs per day, top 8 keywords, total vs applied, geography (country dropdown with counts), weekly fixed vs hourly, AI score and cream rating distributions. Range: 7 days (default) / 30 days / 3 months / 12 months |
+| `/jobs` | Upwork Jobs | Full-width table, filters, saved filter sets, status, proposal drawer |
+| `/emailhub`, `/emailhub/[id]` | EmailHub | CSV upload (named), reviewer lists, 4-email sequences, bulk generate / delete, push to Instantly (mock) |
+| `/linkedin-ai`, `/linkedin-ai/[id]` | LinkedIn AI | Profiles, message + follow-up generation, outreach status, bulk generate / delete |
+| `/pitch-hub`, `/pitch-hub/[id]` | Pitch Hub | Document upload (named), trackable links, visitors, per-link analytics |
+| `/settings` | Settings | All tabs show "Coming soon" |
+
 ## Structure
 - `app/globals.css` — semantic design tokens (light + dark), type scale, motion
-- `components/ui/` — primitives (Button, Select, Switch, Checkbox, Segmented, Tooltip, Dialog, Sheet), Tabs, Stat
-- `components/shell/AppShell.tsx` — collapsible sidebar, mobile drawer, user menu (theme, settings, logout)
+- `components/ui/` — primitives (Button, Select, Switch, Checkbox, Segmented, Tooltip, Dialog, Sheet)
+- `components/shell/AppShell.tsx` — top navigation, mobile drawer, user menu (theme, settings, logout)
 - `components/{dashboard,jobs,emailhub,linkedin,pitch,settings}/` — page modules
-- `data/jobs.ts`, `lib/jobs-utils.ts` — **mock data** (deterministic), filter/sort/CSV logic
+- `data/*.ts` — **mock data** (deterministic); `lib/*-store.ts` — browser-only state for the prototype modules
 
 ## Mock vs real
-All data is mock. Replace with the endpoints in SUPER_ADMIN_TECHNICAL_REQUIREMENTS §4 (`/api/v1/jobs`, `/proposals/generate`, `/trackable-links`). Auth/logout, AI generation, and role enforcement (RBAC) are UI-only prototypes.
-
-## Requirements checklist (from blueprint §18)
-- [x] `/` redirects to `/jobs`
-- [x] Branding, 5 nav links, user menu (sidebar replaces top nav per brief)
-- [x] Mobile slide-out navigation
-- [x] User menu: Settings, Change Password, Log Out (confirm)
-- [x] Toolbar: sidebar toggle, search + clear, Fetch Cream Jobs, Refresh (+skeleton)
-- [x] Collapsible filter panel, 5 dropdowns, counter, Reset
-- [x] Removable filter chips + Clear all
-- [x] Save Filters → localStorage, hydrated on load
-- [x] Sort Budget / Posted / Total Spent (two-way)
-- [x] Title tooltip, cream badge + count
-- [x] AI rating verdict + model badge
-- [x] Inline status dropdown (no row expansion on click)
-- [x] Accordion: client/job score rings, breakdown (5 + 3 metrics), ChatGPT/Claude switch
-- [x] Description, skills (highlight), specs, Generate Proposal, Upwork link
-- [x] Proposal drawer: model, variant, word count, copy, regenerate
-- [x] Share Document: create trackable link, copy, insert into letter (switches tab, toast)
-- [x] Bulk bar: Mark Applied / Interviewing / Hired / Export (RFC 4180 CSV) / Clear
-- [x] Infinite scroll + manual fallback + "All jobs loaded"
-- [x] Settings: 8 tabs, `?tab=` deep links, `profile` alias → password
-- [x] Dashboard, EmailHub, LinkedIn AI, Pitch Hub functional requirements (§5–8 of page specs)
-- [x] Light + dark themes, reduced-motion support, visible focus, keyboard-operable tabs/menus
+All data is mock and stored in the browser (localStorage) for EmailHub, LinkedIn AI and Pitch Hub. Integration plan: add a typed API layer (`lib/api/*`) behind the same screens and replace the stores with data hooks. Auth, AI generation, scraping, Instantly push, file storage and link tracking are UI-only prototypes.
 
 ## Known gaps
 - No automated tests or formal a11y audit (manual checks only).
-- Table scrolls horizontally on windows under ~1400px with the filter panel open.
-- Settings forms (Claude/ChatGPT/prompt) save to local state only.
+- Old, unused components remain in the repo (`EmailHubView`, `LinkedInView`, `PitchHubView`, Settings tab forms).
+- Uploaded documents are not stored (metadata only), so Preview/Download work only in the session that uploaded the file.

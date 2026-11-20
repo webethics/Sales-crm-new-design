@@ -68,7 +68,7 @@ export function JobDetail({ job, onGenerate }: { job: Job; onGenerate: () => voi
             <div className="grid gap-x-12 gap-y-6 md:grid-cols-2 md:[&>div+div]:border-l md:[&>div+div]:border-line md:[&>div+div]:pl-12">
               <div>
                 <h3 className="text-[12px] font-semibold">Client score</h3>
-                <p className="mt-2 rounded-lg border-l-[3px] bg-[color-mix(in_srgb,var(--accent)_9%,transparent)] px-3 py-2.5 text-[14px] font-medium leading-snug text-fg" style={{ borderColor: ct.dot }}>{d.clientSummary}</p>
+                <p className="mt-2 rounded-lg border-l-[3px] bg-[color-mix(in_srgb,var(--accent)_9%,transparent)] px-3 py-2.5 text-[14px] leading-snug text-fg" style={{ borderColor: ct.dot }}>{d.clientSummary}</p>
                 <ul className="mt-5 grid gap-3">{d.clientMetrics.map((m) => <MetricRow key={m.label} m={m} />)}</ul>
               </div>
               <div>
@@ -76,7 +76,7 @@ export function JobDetail({ job, onGenerate }: { job: Job; onGenerate: () => voi
                   <h3 className="text-[12px] font-semibold">Job score</h3>
                   <Segmented value={model} onChange={setModel} label="Scoring model" options={[{ value: "chatgpt", label: "ChatGPT" }, { value: "claude", label: "Claude" }]} />
                 </div>
-                <p className="mt-2 rounded-lg border-l-[3px] px-3 py-2.5 text-[14px] font-medium leading-snug text-fg" style={{ borderColor: jt.dot, background: `color-mix(in srgb, ${jt.dot} 10%, transparent)` }}><span className="num font-semibold">{jobScore}%</span> from {model === "chatgpt" ? "ChatGPT" : "Claude"}. {d.jobSummary}</p>
+                <p className="mt-2 rounded-lg border-l-[3px] px-3 py-2.5 text-[14px] leading-snug text-fg" style={{ borderColor: jt.dot, background: `color-mix(in srgb, ${jt.dot} 10%, transparent)` }}><span className="num">{jobScore}%</span> from {model === "chatgpt" ? "ChatGPT" : "Claude"}. {d.jobSummary}</p>
                 <ul className="mt-5 grid gap-3">{d.jobMetrics.map((m) => <MetricRow key={m.label} m={m} />)}</ul>
                 <p className="mt-3 text-[11px] text-fg-3">Verdict is the consensus of ChatGPT (GPT-5) and Claude 3.7 Sonnet.</p>
               </div>

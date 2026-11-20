@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ComingSoon } from "@/components/ui/page";
+import { EmailHubList } from "@/components/emailhub/EmailHubList";
 
 export const metadata: Metadata = { title: "EmailHub" };
-export default function Page() { return <ComingSoon title="EmailHub" subtitle="Email campaigns, automated sequences, and outreach analytics" />; }
+export default function Page() { return <EmailHubList />; }

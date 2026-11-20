@@ -76,7 +76,7 @@ function setTheme(mode: "light" | "dark" | "system") {
 function UserMenu() {
   const router = useRouter();
   const [confirm, setConfirm] = React.useState(false);
-  const item = "flex h-8 cursor-default items-center gap-2.5 rounded-md px-2 text-[13px] outline-none data-[highlighted]:bg-accent data-[highlighted]:text-on-accent";
+  const item = "flex h-8 cursor-default items-center gap-2.5 rounded-md px-2 text-[13px] outline-none data-[highlighted]:bg-accent-soft data-[highlighted]:text-accent";
   return (
     <>
       <Dropdown.Root>
@@ -106,7 +106,7 @@ function UserMenu() {
               </Dropdown.Portal>
             </Dropdown.Sub>
             <Dropdown.Separator className="mx-1 my-1 h-px bg-line" />
-            <Dropdown.Item className={cn(item, "text-err data-[highlighted]:text-on-accent data-[highlighted]:bg-err")} onSelect={() => setConfirm(true)}><LogOut className="size-4" /> Log Out</Dropdown.Item>
+            <Dropdown.Item className={cn(item, "text-err data-[highlighted]:text-err data-[highlighted]:bg-[color-mix(in_srgb,var(--err)_14%,transparent)]")} onSelect={() => setConfirm(true)}><LogOut className="size-4" /> Log Out</Dropdown.Item>
           </Dropdown.Content>
         </Dropdown.Portal>
       </Dropdown.Root>

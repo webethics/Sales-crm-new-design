@@ -4,7 +4,7 @@ import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { ArrowDown, ArrowUp, ArrowUpDown, Briefcase, Check, ChevronDown, ChevronRight, Loader2, Star } from "lucide-react";
 import type { Job, JobStatus, SortDirection, SortField } from "@/lib/types";
 import { JOB_STATUSES } from "@/lib/jobs-utils";
-import { Button, Checkbox, Dot, Skeleton, Tooltip, cn } from "@/components/ui/primitives";
+import { Button, Dot, Skeleton, Tooltip, cn } from "@/components/ui/primitives";
 import { JobDetail } from "./JobDetail";
 
 const verdictTone = { Approved: "ok", "Manual Review": "warn", Rejected: "err" } as const;
@@ -23,7 +23,7 @@ function StatusSelect({ status, onChange }: { status: JobStatus; onChange: (s: J
       <Dropdown.Portal>
         <Dropdown.Content align="start" sideOffset={4} onClick={(e) => e.stopPropagation()} className="anim-pop z-[70] w-40 rounded-xl bg-bg p-1 shadow-pop">
           {JOB_STATUSES.map((s) => (
-            <Dropdown.Item key={s} onSelect={() => onChange(s)} className="relative flex h-7 cursor-default items-center gap-2 rounded-md pl-7 pr-2 text-[13px] outline-none data-[highlighted]:bg-accent data-[highlighted]:text-on-accent">
+            <Dropdown.Item key={s} onSelect={() => onChange(s)} className="relative flex h-7 cursor-default items-center gap-2 rounded-md pl-7 pr-2 text-[13px] outline-none data-[highlighted]:bg-accent-soft data-[highlighted]:text-accent">
               {s === status && <Check className="absolute left-2 size-3.5" strokeWidth={2.5} />}
               <Dot tone={statusTone[s]} />{s}
             </Dropdown.Item>
@@ -57,10 +57,9 @@ function Row({ job, selected, expanded, onToggleExpand, onToggleSelect, onStatus
       <tr
         onClick={onToggleExpand}
         data-selected={selected || undefined}
-        className={cn("group cursor-default border-b border-line transition-colors hover:bg-surface/70 data-[selected]:bg-accent-soft", expanded && "bg-surface/50 border-b-transparent")}
+        className={cn("group cursor-pointer border-b border-line transition-colors hover:bg-surface/70 data-[selected]:bg-accent-soft", expanded && "bg-bg border-b-transparent hover:bg-bg")}
       >
-        <td className="w-8 pl-3 pr-0"><Checkbox checked={selected} onChange={onToggleSelect} label={`Select ${job.title}`} /></td>
-        <td className="w-7 px-0">
+        <td className="w-10 pl-3 pr-0">
           <button type="button" aria-expanded={expanded} aria-label={`${expanded ? "Collapse" : "Expand"} details for ${job.title}`}
             onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
             className="grid size-6 place-items-center rounded-md text-fg-3 hover:bg-surface-2 hover:text-fg">
@@ -87,13 +86,14 @@ function Row({ job, selected, expanded, onToggleExpand, onToggleSelect, onStatus
         <td className="whitespace-nowrap px-2.5">
           <span className="inline-flex items-center gap-1.5">
             <span className={cn("inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-medium",
-              job.magicVerdict === "Approved" && "bg-[color-mix(in_srgb,var(--ok)_14%,transparent)] text-ok",
-              job.magicVerdict === "Manual Review" && "bg-[color-mix(in_srgb,var(--warn)_14%,transparent)] text-warn",
-              job.magicVerdict === "Rejected" && "bg-[color-mix(in_srgb,var(--err)_14%,transparent)] text-err")}>
-              <Dot tone={verdictTone[job.magicVerdict]} />{job.magicVerdict}<span className="num opacity-70">{job.verdictScore}%</span>
+              job.magicVerdict === "Approved" && "bg-[color-mix(in_srgb,var(--ok)_16%,transparent)] text-ok",
+              job.magicVerdict === "Manual Review" && "bg-[color-mix(in_srgb,var(--warn)_16%,transparent)] text-warn",
+              job.magicVerdict === "Rejected" && "bg-[color-mix(in_srgb,var(--err)_16%,transparent)] text-err")}>
+              <Dot tone={verdictTone[job.magicVerdict]} />{job.magicVerdict}<span className="num">{job.verdictScore}%</span>
             </span>
-            <span className="num inline-flex h-6 items-center gap-1 rounded-full bg-surface px-2 text-[11px] font-medium text-fg-2" title={`Top model ${top.model === "J" ? "ChatGPT" : "Claude"}`}>
-              <span className="grid size-3.5 place-items-center rounded-full bg-surface-2 text-[9px] font-semibold text-fg">{top.model}</span>{top.score}%
+            <span className={cn("num inline-flex h-6 items-center gap-1.5 rounded-full px-2 text-[12px] font-medium",
+              top.model === "J" ? "bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-accent" : "bg-[color-mix(in_srgb,#af52de_16%,transparent)] text-[#a03dd0] dark:text-[#d58cff]")} title={`Top model ${top.model === "J" ? "ChatGPT" : "Claude"}`}>
+              <span className={cn("grid size-4 place-items-center rounded-full text-[9px] font-bold text-white", top.model === "J" ? "bg-accent" : "bg-[#af52de]")}>{top.model}</span>{top.score}%
             </span>
           </span>
         </td>
@@ -106,8 +106,8 @@ function Row({ job, selected, expanded, onToggleExpand, onToggleSelect, onStatus
         <td className="whitespace-nowrap px-2.5 text-[13px] text-fg-2">{job.location}</td>
         <td className="whitespace-nowrap px-2.5 pr-4"><StatusSelect status={job.status} onChange={onStatusChange} /></td>
       </tr>
-      <tr aria-hidden={!expanded} className={expanded ? "border-b border-line bg-surface/50" : ""}>
-        <td colSpan={9} className="p-0">
+      <tr aria-hidden={!expanded} className={expanded ? "border-b border-line bg-bg" : ""}>
+        <td colSpan={8} className="p-0">
           <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[var(--ease)]", expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
             <div className="min-w-0 overflow-hidden" inert={!expanded}><div className="sticky left-0 w-[var(--vw,100%)] max-w-full">{expanded && <JobDetail job={job} onGenerate={onGenerate} />}</div></div>
           </div>
@@ -139,14 +139,13 @@ export function JobTable(p: {
 
   return (
     <>
-      <table className="w-full min-w-[920px] table-fixed border-collapse">
+      <table className="w-full min-w-[980px] table-fixed border-collapse">
         <colgroup>
-          <col className="w-8" /><col className="w-7" /><col /><col className="w-[192px]" /><col className="w-[80px]" />
+          <col className="w-10" /><col /><col className="w-[244px]" /><col className="w-[80px]" />
           <col className="w-[108px]" /><col className="w-[88px]" /><col className="w-[100px]" /><col className="w-[130px]" />
         </colgroup>
         <thead>
           <tr>
-            <th className={cn(th, "pl-3 pr-0")}><Checkbox checked={all} indeterminate={!all && some} onChange={p.onToggleSelectAll} label="Select all jobs" /></th>
             <th className={cn(th, "px-0")}><span className="sr-only">Expand</span></th>
             <th className={th}>Job title</th>
             <th className={th}>AI rating</th>

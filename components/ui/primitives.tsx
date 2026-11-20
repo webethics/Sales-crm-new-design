@@ -62,7 +62,7 @@ export const TextArea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTML
 
 export function Field({ label, htmlFor, hint, error, children }: { label: string; htmlFor: string; hint?: string; error?: string; children: React.ReactNode }) {
   return (
-    <div className="grid gap-1.5">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
       <label htmlFor={htmlFor} className="text-[12px] font-medium text-fg-2">{label}</label>
       {children}
       {error ? (
@@ -83,10 +83,9 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={cn("relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors duration-200", checked ? "bg-ok-dot" : "bg-line-strong")}
-      style={checked ? { background: "var(--ok-dot)" } : undefined}
+      className={cn("relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors duration-200", checked ? "bg-accent" : "bg-line-strong")}
     >
-      <span className={cn("absolute top-0.5 size-[18px] rounded-full bg-white shadow-sm transition-transform duration-200", checked ? "translate-x-[18px]" : "translate-x-0.5")} />
+      <span className={cn("absolute left-0 top-0.5 size-[18px] rounded-full bg-white shadow-sm transition-transform duration-200", checked ? "translate-x-[18px]" : "translate-x-0.5")} />
     </button>
   );
 }
@@ -140,16 +139,16 @@ export function Select({ value, onValueChange, options, id, className, ariaLabel
       <SelectPrimitive.Trigger
         id={id}
         aria-label={ariaLabel}
-        className={cn(fieldBase, "inline-flex items-center justify-between gap-2 text-left data-[state=open]:shadow-[inset_0_0_0_1.5px_var(--accent)]", className)}
+        className={cn(fieldBase, "inline-flex items-center justify-between gap-2 text-left !bg-bg !shadow-[0_1px_2px_rgba(16,24,40,0.08)] hover:!bg-accent-soft data-[state=open]:!bg-accent-soft focus-visible:!outline-none focus-visible:!bg-accent-soft", className)}
       >
-        <span className="truncate"><SelectPrimitive.Value placeholder={placeholder} /></span>
+        <span className="min-w-0 truncate"><SelectPrimitive.Value placeholder={placeholder} /></span>
         <ChevronDown className="size-3.5 shrink-0 text-fg-3" />
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal>
         <SelectPrimitive.Content position="popper" sideOffset={4} className="anim-pop z-[70] max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-xl bg-bg p-1 shadow-pop">
           <SelectPrimitive.Viewport>
             {options.map((o) => (
-              <SelectPrimitive.Item key={o} value={o} className="relative flex h-7 cursor-default select-none items-center rounded-md pl-7 pr-3 text-[13px] outline-none data-[highlighted]:bg-accent data-[highlighted]:text-on-accent">
+              <SelectPrimitive.Item key={o} value={o} className="relative flex h-7 cursor-default select-none items-center rounded-md pl-7 pr-3 text-[13px] outline-none data-[highlighted]:bg-accent-soft data-[highlighted]:text-accent">
                 <SelectPrimitive.ItemIndicator className="absolute left-2"><Check className="size-3.5" strokeWidth={2.5} /></SelectPrimitive.ItemIndicator>
                 <SelectPrimitive.ItemText>{o}</SelectPrimitive.ItemText>
               </SelectPrimitive.Item>

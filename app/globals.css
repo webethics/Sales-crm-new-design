@@ -8,8 +8,8 @@
    ─────────────────────────────────────────────────────────── */
 :root {
   --bg: #ffffff;
-  --surface: #f5f5f7;        /* sidebar, hover, grouped fills */
-  --surface-2: #ebebf0;      /* pressed / selected-neutral */
+  --surface: #f1f5fb;        /* sidebar, hover, grouped fills */
+  --surface-2: #e3ebf7;      /* pressed / selected-neutral */
   --fg: #1d1d1f;             /* primary text      15.9:1 on bg */
   --fg-2: #515154;           /* secondary text     7.9:1 */
   --fg-3: #6e6e73;           /* tertiary / labels  5.0:1 */
@@ -35,8 +35,8 @@
 
 .dark {
   --bg: #161618;
-  --surface: #1f1f22;
-  --surface-2: #2a2a2e;
+  --surface: #1b2029;
+  --surface-2: #262d3a;
   --fg: #f5f5f7;
   --fg-2: #c7c7cc;
   --fg-3: #98989f;
@@ -109,6 +109,8 @@ body {
   border-radius: 6px;
 }
 input:focus-visible, textarea:focus-visible { outline-offset: 0; }
+/* Menu/list options show their highlight state instead of an outline */
+[role="option"]:focus-visible, [role="menuitem"]:focus-visible, [role="menuitemradio"]:focus-visible, [role="menuitemcheckbox"]:focus-visible { outline: none; }
 
 ::selection { background: var(--accent-soft); }
 
