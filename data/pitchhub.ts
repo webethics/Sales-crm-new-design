@@ -1,8 +1,10 @@
 // MOCK DATA — replace with the document upload / tracking API.
-export type LinkSettings = { domain: string; identity: "none" | "email"; allowBlock: boolean; password: string | null; expiry: string | null; download: boolean };
-export type DocLink = { id: string; name: string; token: string; active: boolean; views: number; lastViewed: string | null; createdBy: string; createdAt: string; settings: LinkSettings };
+export type LinkSettings = { domain: string; domainId?: string | null; identity: "none" | "email"; allowBlock: boolean; allowList?: string; blockList?: string; password: string | null; hasPassword?: boolean; expiry: string | null; download: boolean };
+export type DocLink = { id: string; name: string; token: string; active: boolean; views: number; lastViewed: string | null; createdBy: string; createdAt: string; settings: LinkSettings; url?: string; canManage?: boolean };
 export type Visitor = { id: string; linkId: string; name: string; device: string; source: string; location: string; duration: number; completion: number; lastViewed: string; internal: boolean };
-export type PitchDoc = { id: string; name: string; fileName: string; uploadedAt: string; uploadedBy: string; pages: number; size: number; pageTimes: number[]; links: DocLink[]; visitors: Visitor[] };
+export type PitchDoc = { id: string; name: string; fileName: string; uploadedAt: string; uploadedBy: string; pages: number; size: number; pageTimes: number[]; links: DocLink[]; visitors: Visitor[];
+  /** Live mode only. */
+  status?: "uploading" | "processing" | "ready" | "failed"; error?: string | null; canManage?: boolean; linkCount?: number; viewCount?: number; lastViewed?: string | null; detailLoaded?: boolean };
 
 export const DOMAINS = ["files.webethicssolutions.com", "deck.webethicssolutions.com"];
 export const ACCEPT = ".pdf,.ppt,.pptx,.doc,.docx,.key";

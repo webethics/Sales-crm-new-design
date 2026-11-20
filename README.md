@@ -29,12 +29,13 @@ Stack: Next.js 16 (App Router), React 19, TypeScript, Tailwind 4, Radix primitiv
 ## Mock vs real
 All data is mock and stored in the browser (localStorage) for EmailHub, LinkedIn AI and Pitch Hub. Integration plan: add a typed API layer (`lib/api/*`) behind the same screens and replace the stores with data hooks. AI generation, scraping, Instantly push, file storage and link tracking are UI-only prototypes.
 
-## Live mode (EmailHub and LinkedIn AI)
+## Live mode (EmailHub, LinkedIn AI and Pitch Hub)
 Set the variables in `.env.example` (copy it to `.env.local`) to use the existing sales-crm backend instead of the demo data:
 - `NEXT_PUBLIC_API_MODE=live`, plus `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` of the **same** Supabase project the backend uses.
-- `API_PROXY_TARGET` = origin of a running backend (development or staging). `next.config.mjs` forwards `/api/email-marketing/*` and `/api/linkedin-outreach/*` to it, so the Supabase session cookie goes along.
+- `API_PROXY_TARGET` = origin of a running backend (development or staging). `next.config.mjs` forwards `/api/email-marketing/*`, `/api/linkedin-outreach/*`, `/api/documents/*`, `/api/links/*` and `/api/domains` to it, so the Supabase session cookie goes along.
 - Sign in with a real Supabase user. The EmailHub screens then use `lib/api/emailhub.ts` (typed client for `/api/email-marketing/*`: files, upload through signed storage URLs, rows, per-lead generate / regenerate, edit, delete, push to a Draft or Paused campaign, prompts, AI platforms).
 - LinkedIn AI uses `lib/api/linkedin.ts` (`/api/linkedin-outreach/*`: profile library, import of URLs or a spreadsheet, scrape and bulk-generate runs driven from the browser, single generate / regenerate, edit, delete). The backend writes one email per profile, so the follow-up message box is hidden in live mode, and the outreach status (Not contacted / Message sent / Follow-up sent) is remembered in this browser only.
+- Pitch Hub uses `lib/api/pitchhub.ts` (the old Documents module: PDF upload through a signed storage URL then page rendering driven from the browser, links with domain, email gate, allow/block lists, password, expiry and download switch, visitors, per-page analytics, original-file preview and download). The backend accepts PDF files only, so the upload dialog is PDF-only in live mode. Passwords are never read back (the backend only reports that one is set).
 - Without these variables nothing changes: the app runs on demo data. Registration, password reset, Settings and the other modules are still demo data.
 
 ## Settings (mock)
