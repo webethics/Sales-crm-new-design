@@ -3,7 +3,8 @@ import * as React from "react";
 import { LIVE } from "@/lib/api/config";
 import { loadAiPlatforms, loadPrompts, listCampaigns } from "@/lib/api/emailhub";
 import { PROMPTS } from "@/data/emailhub";
-import { PLATFORMS } from "@/data/linkedin";
+import { PLATFORMS, TEMPLATES } from "@/data/linkedin";
+import * as li from "@/lib/api/linkedin";
 import type { Selection } from "./emailhub-types";
 
 export type Platform = { provider: string; label: string; models: { id: string; label: string }[] };
@@ -21,29 +22,44 @@ const demo: GenOptions = {
   initial: { template: PROMPTS[0], platform: Object.keys(PLATFORMS)[0], model: PLATFORMS[Object.keys(PLATFORMS)[0]][0] },
 };
 
-let liveCache: GenOptions | null = null;
-let inflight: Promise<GenOptions> | null = null;
-async function loadLive(): Promise<GenOptions> {
-  const [pr, ai] = await Promise.all([loadPrompts(), loadAiPlatforms()]);
+export type GenModule = "emailhub" | "linkedin";
+const demoLinkedIn: GenOptions = { ...demo, templates: TEMPLATES.map((t) => ({ id: t, label: t })), initial: { ...demo.initial, template: TEMPLATES[0] } };
+
+const liveCache: Partial<Record<GenModule, GenOptions>> = {};
+const inflight: Partial<Record<GenModule, Promise<GenOptions>>> = {};
+type Prompts = { prompts: { id: string; name: string; title: string | null }[]; defaultId: string | null; savedId: string | null };
+type Ai = { platforms: { id: string; label: string; configured: boolean; models: { id: string; label: string }[] }[]; def: { provider: string; model: string } | null; saved: { provider: string; model: string } | null };
+
+function build(pr: Prompts, ai: Ai): GenOptions {
   const templates = pr.prompts.map((p) => ({ id: p.id, label: p.title || p.name }));
   const platforms: Platform[] = ai.platforms.filter((p) => p.configured).map((p) => ({ provider: p.id, label: p.label, models: p.models }));
-  const tid = pr.saved?.prompt_id ?? pr.defaults.prompt_id ?? templates[0]?.id;
-  const choice = ai.saved ?? ai.default ?? (platforms[0] ? { provider: platforms[0].provider, model: platforms[0].models[0]?.id } : null);
+  const tid = pr.savedId ?? pr.defaultId ?? templates[0]?.id;
+  const choice = ai.saved ?? ai.def ?? (platforms[0] ? { provider: platforms[0].provider, model: platforms[0].models[0]?.id } : null);
   const plat = platforms.find((p) => p.provider === choice?.provider) ?? platforms[0];
   return {
     ready: true, error: null, templates, platforms,
     initial: { template: templates.find((t) => t.id === tid)?.label ?? templates[0]?.label ?? "", platform: plat?.label ?? "", model: plat?.models.find((m) => m.id === choice?.model)?.label ?? plat?.models[0]?.label ?? "" },
   };
 }
+async function loadLive(module: GenModule): Promise<GenOptions> {
+  if (module === "linkedin") {
+    const [pr, ai] = await Promise.all([li.loadPromptSelection(), li.loadAiPlatforms()]);
+    return build({ prompts: pr.prompts, defaultId: pr.default_prompt_id, savedId: pr.saved_prompt_id }, { platforms: ai.platforms, def: ai.default, saved: ai.saved });
+  }
+  const [pr, ai] = await Promise.all([loadPrompts(), loadAiPlatforms()]);
+  return build({ prompts: pr.prompts, defaultId: pr.defaults.prompt_id, savedId: pr.saved?.prompt_id ?? null }, { platforms: ai.platforms, def: ai.default, saved: ai.saved });
+}
 
 /** The Template / AI platform / Model choices: fixed demo lists, or the real prompts and configured AI platforms from the backend. */
-export function useGenOptions(): GenOptions {
-  const [opts, setOpts] = React.useState<GenOptions>(LIVE ? liveCache ?? { ...demo, ready: false, templates: [], platforms: [], initial: { template: "", platform: "", model: "" } } : demo);
+export function useGenOptions(module: GenModule = "emailhub"): GenOptions {
+  const fixed = module === "linkedin" ? demoLinkedIn : demo;
+  const [opts, setOpts] = React.useState<GenOptions>(LIVE ? liveCache[module] ?? { ...demo, ready: false, templates: [], platforms: [], initial: { template: "", platform: "", model: "" } } : fixed);
   React.useEffect(() => {
-    if (!LIVE || liveCache) { if (liveCache) setOpts(liveCache); return; }
-    inflight ??= loadLive().finally(() => { inflight = null; });
-    inflight.then((o) => { liveCache = o; setOpts(o); }).catch((e) => setOpts((x) => ({ ...x, ready: true, error: e instanceof Error ? e.message : "Could not load the prompts and AI platforms." })));
-  }, []);
+    if (!LIVE) return;
+    if (liveCache[module]) { setOpts(liveCache[module]!); return; }
+    inflight[module] ??= loadLive(module).finally(() => { delete inflight[module]; });
+    inflight[module]!.then((o) => { liveCache[module] = o; setOpts(o); }).catch((e) => setOpts((x) => ({ ...x, ready: true, error: e instanceof Error ? e.message : "Could not load the prompts and AI platforms." })));
+  }, [module]);
   return opts;
 }
 
