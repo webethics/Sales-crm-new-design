@@ -1,12 +1,16 @@
 "use client";
 import * as React from "react";
-import { MODELS, PROMPTS, SEED_LISTS, buildEmails, type EList, type EmailSet, type Reviewer } from "@/data/emailhub";
+import { LIVE } from "@/lib/api/config";
+import { SEED_LISTS, PROMPTS, MODELS, buildEmails, type EList, type EmailSet, type Reviewer } from "@/data/emailhub";
+import { ekey, type EmailHubApi, type ListStatus, type Pushed, type Selection } from "./emailhub-types";
+import { useEmailHubLive } from "./emailhub-live";
 
-export type ListStatus = "Processing" | "Ready" | "Partial" | "Generating" | "Generated";
-export type Pushed = { at: string; campaign: string };
+export { ekey };
+export type { ListStatus, Pushed };
+
+// ── Demo data (browser storage). Used when NEXT_PUBLIC_API_MODE is not "live". ──
 type Store = { lists: EList[]; emails: Record<string, EmailSet>; pushed: Record<string, Pushed> };
 const KEY = "emailhub_store_v1";
-export const ekey = (listId: string, rid: string) => `${listId}:${rid}`;
 const now = () => new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
 
 function seed(): Store {
@@ -32,60 +36,59 @@ export function listStatus(l: EList, emails: Record<string, EmailSet>): ListStat
   return n === 0 ? "Ready" : n === l.reviewers.length ? "Generated" : "Partial";
 }
 
-export function useEmailHub() {
+function useEmailHubDemo(): EmailHubApi {
   const [, force] = React.useReducer((x: number) => x + 1, 0);
   React.useEffect(() => {
     if (!hydrated) { cache = load(); hydrated = true; }
     listeners.add(force); force();
     return () => { listeners.delete(force); };
   }, []);
-  const ready = hydrated;
-
-  const generate = (listId: string, reviewerIds: string[] | null, prompt: string, model: string, done?: () => void) => {
-    const l = cache.lists.find((x) => x.id === listId); if (!l) return;
-    const targets = l.reviewers.filter((r) => !reviewerIds || reviewerIds.includes(r.id));
-    busy = { ...busy, [listId]: "Generating" }; emit();
-    window.setTimeout(() => {
-      const next = { ...cache.emails };
-      targets.forEach((r: Reviewer) => { next[ekey(listId, r.id)] = { emails: buildEmails(r, prompt, model), prompt, model, at: now() }; });
-      const { [listId]: _gone, ...rest } = busy; busy = rest;
-      save({ ...cache, emails: next }); done?.();
-    }, 900 + Math.min(targets.length, 40) * 60);
-  };
 
   return {
-    ready,
-    lists: cache.lists,
-    emails: cache.emails,
-    status: (l: EList) => listStatus(l, cache.emails),
-    addList: (name: string, reviewers: Reviewer[]) => {
+    ready: hydrated, loadError: null,
+    lists: cache.lists, emails: cache.emails, pushed: cache.pushed,
+    status: (l) => listStatus(l, cache.emails),
+    isBusy: (listId) => busy[listId],
+    loadList: () => undefined, loading: () => false,
+    upload: (name, reviewers, _file, done) => {
       const id = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "list"}-${Math.random().toString(36).slice(2, 6)}`;
       save({ ...cache, lists: [{ id, name, uploadedAt: new Date().toISOString(), reviewers }, ...cache.lists] });
       busy = { ...busy, [id]: "Processing" }; emit();
       window.setTimeout(() => { const { [id]: _g, ...rest } = busy; busy = rest; emit(); }, 1500);
-      return id;
+      done();
     },
-    removeLists: (ids: string[]) => {
-      const emails = Object.fromEntries(Object.entries(cache.emails).filter(([k]) => !ids.includes(k.split(":")[0])));
-      const pushed = Object.fromEntries(Object.entries(cache.pushed).filter(([k]) => !ids.includes(k.split(":")[0])));
-      save({ lists: cache.lists.filter((l) => !ids.includes(l.id)), emails, pushed });
+    removeLists: (ids, done) => {
+      const gone = (k: string) => ids.includes(k.split(":")[0]);
+      save({ lists: cache.lists.filter((l) => !ids.includes(l.id)), emails: Object.fromEntries(Object.entries(cache.emails).filter(([k]) => !gone(k))), pushed: Object.fromEntries(Object.entries(cache.pushed).filter(([k]) => !gone(k))) });
+      done?.();
     },
-    removeReviewers: (listId: string, ids: string[]) => {
-      const emails = Object.fromEntries(Object.entries(cache.emails).filter(([k]) => !ids.some((rid) => k === ekey(listId, rid))));
-      const pushed = Object.fromEntries(Object.entries(cache.pushed).filter(([k]) => !ids.some((rid) => k === ekey(listId, rid))));
-      save({ lists: cache.lists.map((l) => (l.id === listId ? { ...l, reviewers: l.reviewers.filter((r) => !ids.includes(r.id)) } : l)), emails, pushed });
+    removeReviewers: (listId, ids, done) => {
+      const gone = (k: string) => ids.some((rid) => k === ekey(listId, rid));
+      save({ lists: cache.lists.map((l) => (l.id === listId ? { ...l, reviewers: l.reviewers.filter((r) => !ids.includes(r.id)) } : l)), emails: Object.fromEntries(Object.entries(cache.emails).filter(([k]) => !gone(k))), pushed: Object.fromEntries(Object.entries(cache.pushed).filter(([k]) => !gone(k))) });
+      done?.();
     },
-    setEmails: (listId: string, rid: string, set: EmailSet) => save({ ...cache, emails: { ...cache.emails, [ekey(listId, rid)]: set } }),
-    generate,
-    pushed: cache.pushed,
-    // MOCK — replace with the Instantly API (add leads to a campaign with email_1..email_4 as custom variables).
-    pushToInstantly: (listId: string, rids: string[], campaign: string, done?: () => void) => {
+    setEmails: (listId, rid, set, done) => { save({ ...cache, emails: { ...cache.emails, [ekey(listId, rid)]: set } }); done?.(); },
+    generate: (listId, reviewerIds, sel: Selection, done) => {
+      const l = cache.lists.find((x) => x.id === listId); if (!l) return;
+      const targets = l.reviewers.filter((r: Reviewer) => !reviewerIds || reviewerIds.includes(r.id));
+      busy = { ...busy, [listId]: "Generating" }; emit();
+      window.setTimeout(() => {
+        const next = { ...cache.emails };
+        targets.forEach((r) => { next[ekey(listId, r.id)] = { emails: buildEmails(r, sel.templateLabel, sel.modelLabel), prompt: sel.templateLabel, model: sel.modelLabel, at: now() }; });
+        const { [listId]: _gone, ...rest } = busy; busy = rest;
+        save({ ...cache, emails: next }); done?.();
+      }, 900 + Math.min(targets.length, 40) * 60);
+    },
+    // MOCK — the live mode pushes through the existing backend into an Instantly campaign.
+    pushToInstantly: (listId, rids, campaign, done) => {
       window.setTimeout(() => {
         const next = { ...cache.pushed }; const at = new Date().toISOString();
-        rids.forEach((rid) => { next[ekey(listId, rid)] = { at, campaign }; });
+        rids.forEach((rid) => { next[ekey(listId, rid)] = { at, campaign: campaign.name }; });
         save({ ...cache, pushed: next }); done?.();
       }, 900);
     },
-    isBusy: (listId: string) => busy[listId],
   };
 }
+
+/** The screens use this one hook; the mode is fixed per build, so the hook order never changes. */
+export const useEmailHub: () => EmailHubApi = LIVE ? useEmailHubLive : useEmailHubDemo;

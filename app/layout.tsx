@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { AppShell } from "@/components/shell/AppShell";
+import { Root } from "@/components/shell/Root";
 
 export const metadata: Metadata = {
   title: { default: "Webethics Intelligence Portal", template: "%s | Webethics Solutions" },
@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
       <body>
-        <AppShell>{children}</AppShell>
+        <Root>{children}</Root>
       </body>
     </html>
   );

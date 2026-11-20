@@ -6,6 +6,8 @@ import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Briefcase, FileText, KeyRound, LayoutDashboard, LogOut, Mail, Menu, Moon, Share2, Sun, SunMoon, User, type LucideIcon } from "lucide-react";
 import { Button, Dialog, DialogClose, DialogContent, cn } from "@/components/ui/primitives";
+import { auth, useAuth } from "@/lib/auth-store";
+import { ROLE_LABEL, initials } from "@/lib/auth-rules";
 
 type NavItem = { label: string; href: string; icon: LucideIcon };
 const NAV: NavItem[] = [
@@ -76,20 +78,21 @@ function setTheme(mode: "light" | "dark" | "system") {
 function UserMenu() {
   const router = useRouter();
   const [confirm, setConfirm] = React.useState(false);
+  const { user } = useAuth();
   const item = "flex h-8 cursor-default items-center gap-2.5 rounded-md px-2 text-[13px] outline-none data-[highlighted]:bg-accent-soft data-[highlighted]:text-accent";
   return (
     <>
       <Dropdown.Root>
         <Dropdown.Trigger className="flex h-9 items-center gap-2 rounded-full py-1 pl-1 pr-2.5 transition-colors hover:bg-surface data-[state=open]:bg-surface" aria-label="Account menu">
-          <span aria-hidden className="grid size-7 place-items-center rounded-full bg-surface-2 text-[11px] font-semibold text-fg-2">HV</span>
-          <span className="hidden text-[13px] font-medium sm:inline">Harsh Vardhan</span>
+          <span aria-hidden className="grid size-7 place-items-center rounded-full bg-surface-2 text-[11px] font-semibold text-fg-2">{initials(user?.full_name, user?.email)}</span>
+          <span className="hidden text-[13px] font-medium sm:inline">{user?.full_name || user?.email}</span>
         </Dropdown.Trigger>
         <Dropdown.Portal>
           <Dropdown.Content align="end" sideOffset={6} className="anim-pop z-[70] w-64 rounded-xl bg-bg p-1 shadow-pop">
             <div className="px-2 pb-2 pt-1.5">
-              <p className="text-[13px] font-semibold">Harsh Vardhan</p>
-              <p className="truncate font-mono text-[11px] text-fg-3" title="info.webethics@gmail.com">info.webethics@gmail.com</p>
-              <p className="mt-0.5 text-[11px] text-fg-3">Internal Corporate Access</p>
+              <p className="text-[13px] font-semibold">{user?.full_name || "No name"}</p>
+              <p className="truncate font-mono text-[11px] text-fg-3" title={user?.email}>{user?.email}</p>
+              <p className="mt-0.5 text-[11px] text-fg-3">{user ? ROLE_LABEL[user.role] : ""}</p>
             </div>
             <Dropdown.Separator className="mx-1 my-1 h-px bg-line" />
             <Dropdown.Item className={item} onSelect={() => router.push("/settings")}><User className="size-4" /> Account Settings</Dropdown.Item>
@@ -114,7 +117,7 @@ function UserMenu() {
         <DialogContent title="Log out of Webethics?" description="You will need to sign in again to access the portal.">
           <div className="mt-5 flex justify-end gap-2">
             <DialogClose asChild><Button>Cancel</Button></DialogClose>
-            <DialogClose asChild><Button variant="primary" className="!bg-err">Log Out</Button></DialogClose>
+            <DialogClose asChild><Button variant="primary" className="!bg-err" onClick={() => { auth.signOut(); router.replace("/login"); }}>Log Out</Button></DialogClose>
           </div>
         </DialogContent>
       </Dialog>
