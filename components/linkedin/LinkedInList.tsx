@@ -7,7 +7,7 @@ import { LIVE } from "@/lib/api/config";
 import { OUTREACH_LABEL, useLinkedInStore, type Generated, type Outreach, type OutreachStatus } from "@/lib/linkedin-store";
 import { useGenOptions, useGenSelection } from "@/lib/emailhub-options";
 import { GenFields } from "@/components/emailhub/EmailHubList";
-import { Button, Checkbox, Dialog, DialogClose, DialogContent, Field, Select, TextArea, cn } from "@/components/ui/primitives";
+import { Button, Checkbox, Collapse, Dialog, DialogClose, DialogContent, Field, Select, TextArea, cn } from "@/components/ui/primitives";
 
 const th = "sticky top-0 z-10 h-9 whitespace-nowrap border-b border-line bg-bg px-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-fg-3";
 const initials = (n: string) => n.split(" ").map((x) => x[0]).slice(0, 2).join("");
@@ -404,11 +404,9 @@ export function LinkedInList() {
                   </tr>
                   <tr aria-hidden={!open} className={open ? "border-b border-line" : ""}>
                     <td colSpan={8} className="p-0">
-                      <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[var(--ease)]", open ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
-                        <div className="min-w-0 overflow-hidden" inert={!open}>
-                          {open && <div className="px-4 pb-6 pt-2 sm:pl-[68px] sm:pr-6"><MessagePanel profile={p} existing={g} /></div>}
-                        </div>
-                      </div>
+                      <Collapse open={open}>
+                        <div className="px-4 pb-6 pt-2 sm:pl-[68px] sm:pr-6"><MessagePanel profile={p} existing={g} /></div>
+                      </Collapse>
                     </td>
                   </tr>
                 </React.Fragment>
