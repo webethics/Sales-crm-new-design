@@ -27,11 +27,15 @@ const wc = (s: string) => (s.trim() ? s.trim().split(/\s+/).length : 0);
 const hash = () => Math.random().toString(36).slice(2, 10);
 
 export function ProposalSheet({ job, open, onOpenChange }: { job: Job | null; open: boolean; onOpenChange: (o: boolean) => void }) {
+  // The parent clears `job` the moment the sheet closes; keep the last one so the sheet can slide out instead of vanishing.
+  const last = React.useRef<Job | null>(job);
+  if (job) last.current = job;
+  const shown = last.current;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {job && open && (
-        <SheetContent title="Generate proposal" description={job.title}>
-          <SheetBody key={job.id} job={job} />
+      {shown && (
+        <SheetContent title="Generate proposal" description={shown.title}>
+          <SheetBody key={shown.id} job={shown} />
         </SheetContent>
       )}
     </Dialog>
