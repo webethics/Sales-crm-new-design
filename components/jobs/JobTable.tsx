@@ -52,6 +52,13 @@ function Row({ job, selected, expanded, onToggleExpand, onToggleSelect, onStatus
   onStatusChange: (s: JobStatus) => void; onGenerate: () => void;
 }) {
   const top = job.modelScores.slice().sort((a, b) => b.score - a.score)[0];
+  // Keep the details mounted while the panel slides shut, so closing animates like opening does.
+  const [mounted, setMounted] = React.useState(expanded);
+  React.useEffect(() => {
+    if (expanded) { setMounted(true); return; }
+    const t = window.setTimeout(() => setMounted(false), 340);
+    return () => window.clearTimeout(t);
+  }, [expanded]);
   return (
     <>
       <tr
@@ -72,7 +79,7 @@ function Row({ job, selected, expanded, onToggleExpand, onToggleSelect, onStatus
               <div className="min-w-0">
                 <p className="truncate text-[13px] font-medium">{job.title}</p>
                 <div className="flex min-w-0 items-center gap-1.5 text-[12px] text-fg-3">
-                  <span className="truncate">{job.company} · {job.technology}</span>
+                  <span className="num shrink-0 whitespace-nowrap" title={`Posted ${job.posted}`}>{job.savedDate}, {job.savedTime}</span>
                   {job.isCream && (
                     <span className="inline-flex h-[18px] shrink-0 items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--warn)_14%,transparent)] px-1.5 text-[11px] font-medium text-warn" aria-label={`Cream job${job.creamCount ? `, ${job.creamCount}` : ""}`}>
                       <Star className="size-3 fill-[var(--warn-dot)] text-[var(--warn-dot)]" />{job.creamCount}
@@ -101,15 +108,14 @@ function Row({ job, selected, expanded, onToggleExpand, onToggleSelect, onStatus
           <span className="text-[13px] font-medium">{job.budgetAmount}</span>
           <span className="block text-[11px] uppercase tracking-wider text-fg-3">{job.budgetType}</span>
         </td>
-        <td className="whitespace-nowrap px-2.5 text-[13px] text-fg-2">{job.posted}</td>
         <td className="num whitespace-nowrap px-2.5 text-right text-[13px]">{job.totalSpent}</td>
         <td className="whitespace-nowrap px-2.5 text-[13px] text-fg-2">{job.location}</td>
         <td className="whitespace-nowrap px-2.5 pr-4"><StatusSelect status={job.status} onChange={onStatusChange} /></td>
       </tr>
-      <tr aria-hidden={!expanded} className={expanded ? "border-b border-line bg-bg" : ""}>
-        <td colSpan={8} className="p-0">
+      <tr aria-hidden={!expanded} className={mounted ? "border-b border-line bg-bg" : ""}>
+        <td colSpan={7} className="p-0">
           <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[var(--ease)]", expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
-            <div className="min-w-0 overflow-hidden" inert={!expanded}><div className="sticky left-0 w-[var(--vw,100%)] max-w-full">{expanded && <JobDetail job={job} onGenerate={onGenerate} />}</div></div>
+            <div className="min-w-0 overflow-hidden" inert={!expanded}><div className="sticky left-0 w-[var(--vw,100%)] max-w-full">{(expanded || mounted) && <JobDetail job={job} onGenerate={onGenerate} />}</div></div>
           </div>
         </td>
       </tr>
@@ -142,16 +148,15 @@ export function JobTable(p: {
       <table className="w-full min-w-[980px] table-fixed border-collapse">
         <colgroup>
           <col className="w-10" /><col /><col className="w-[244px]" /><col className="w-[80px]" />
-          <col className="w-[108px]" /><col className="w-[88px]" /><col className="w-[100px]" /><col className="w-[130px]" />
+          <col className="w-[88px]" /><col className="w-[100px]" /><col className="w-[130px]" />
         </colgroup>
         <thead>
           <tr>
             <th className={cn(th, "px-0")}><span className="sr-only">Expand</span></th>
-            <th className={th}>Job title</th>
+            <th className={th}><span className="flex items-center justify-between gap-2"><span>Job title</span><SortHead label="Posted" field="posted" active={p.sortField} dir={p.sortDirection} onSort={p.onSortChange} align="right" /></span></th>
             <th className={th}>AI rating</th>
             <th className={cn(th, "text-right")}><SortHead label="Budget" field="budget" active={p.sortField} dir={p.sortDirection} onSort={p.onSortChange} align="right" /></th>
-            <th className={th}><SortHead label="Posted" field="posted" active={p.sortField} dir={p.sortDirection} onSort={p.onSortChange} /></th>
-            <th className={cn(th, "text-right")}><SortHead label="Total spent" field="totalSpent" active={p.sortField} dir={p.sortDirection} onSort={p.onSortChange} align="right" /></th>
+                        <th className={cn(th, "text-right")}><SortHead label="Total spent" field="totalSpent" active={p.sortField} dir={p.sortDirection} onSort={p.onSortChange} align="right" /></th>
             <th className={th}>Location</th>
             <th className={cn(th, "pr-4")}>Status</th>
           </tr>
@@ -164,7 +169,6 @@ export function JobTable(p: {
                   <td className="px-2.5"><Skeleton className="h-3.5 w-3/5" /><Skeleton className="mt-1.5 h-3 w-2/5" /></td>
                   <td className="px-2.5"><Skeleton className="h-3.5 w-36" /></td>
                   <td className="px-2.5"><Skeleton className="ml-auto h-3.5 w-12" /></td>
-                  <td className="px-2.5"><Skeleton className="h-3.5 w-20" /></td>
                   <td className="px-2.5"><Skeleton className="ml-auto h-3.5 w-14" /></td>
                   <td className="px-2.5"><Skeleton className="h-3.5 w-16" /></td>
                   <td className="px-2.5"><Skeleton className="h-3.5 w-20" /></td>

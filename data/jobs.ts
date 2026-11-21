@@ -87,7 +87,7 @@ export function generateJobs(start: number, count: number): Job[] {
       title,
       company: COMPANIES[Math.floor(r() * COMPANIES.length)],
       savedDate: d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }),
-      savedTime: d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" }),
+      savedTime: d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }),
       savedTimestamp: ts,
       magicVerdict,
       verdictScore,
