@@ -6,7 +6,7 @@ import { AlertCircle, ArrowLeft, Check, ChevronRight, Copy, Eye, Mail, Send, Ext
 import type { EmailSet, Reviewer } from "@/data/emailhub";
 import { ekey, useEmailHub } from "@/lib/emailhub-store";
 import { useCampaigns, useGenOptions, useGenSelection } from "@/lib/emailhub-options";
-import { Button, Checkbox, Dialog, DialogClose, DialogContent, Field, Select, cn } from "@/components/ui/primitives";
+import { Button, Checkbox, Collapse, Dialog, DialogClose, DialogContent, Field, Select, cn } from "@/components/ui/primitives";
 import { MessageBox } from "@/components/linkedin/LinkedInList";
 import { GenFields, GenerateDialog, StatusTag, fmtDate, th } from "./EmailHubList";
 
@@ -204,11 +204,9 @@ export function EmailListDetail() {
                   </tr>
                   <tr aria-hidden={!open} className={open ? "border-b border-line" : ""}>
                     <td colSpan={10} className="p-0">
-                      <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[var(--ease)]", open ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
-                        <div className="min-w-0 overflow-hidden" inert={!open}>
-                          {open && <div className="px-4 pb-6 pt-2 sm:pl-[68px] sm:pr-6"><EmailPanel listId={list.id} reviewer={r} set={set} /></div>}
-                        </div>
-                      </div>
+                      <Collapse open={open}>
+                        <div className="px-4 pb-6 pt-2 sm:pl-[68px] sm:pr-6"><EmailPanel listId={list.id} reviewer={r} set={set} /></div>
+                      </Collapse>
                     </td>
                   </tr>
                 </React.Fragment>

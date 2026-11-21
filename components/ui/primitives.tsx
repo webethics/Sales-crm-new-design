@@ -211,6 +211,22 @@ export function SheetContent({ title, description, children }: { title: string; 
 }
 export const DialogClose = DialogPrimitive.Close;
 
+/** Expandable region: slides open and shut. The content stays mounted while it closes, so the close animates like the open does. */
+export function Collapse({ open, children }: { open: boolean; children: React.ReactNode }) {
+  const [mounted, setMounted] = React.useState(open);
+  React.useEffect(() => {
+    if (open) { setMounted(true); return; }
+    const t = window.setTimeout(() => setMounted(false), 340);
+    return () => window.clearTimeout(t);
+  }, [open]);
+  return (
+    <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[var(--ease)]", open ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
+      <div className="min-w-0 overflow-hidden" inert={!open}>{(open || mounted) && children}</div>
+    </div>
+  );
+}
+
+
 /* ── Status dot + label (color-independent: always has text) ── */
 export function Dot({ tone }: { tone: "ok" | "warn" | "err" | "neutral" | "accent" }) {
   const c = { ok: "var(--ok-dot)", warn: "var(--warn-dot)", err: "var(--err-dot)", neutral: "var(--line-strong)", accent: "var(--accent)" }[tone];
