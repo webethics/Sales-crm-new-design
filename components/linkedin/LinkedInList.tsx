@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { AlertCircle, Check, CheckCheck, ChevronRight, Trash2, Copy, ExternalLink, FileSpreadsheet, Loader2, RotateCw, ScanSearch, Sparkles, UserPlus, X } from "lucide-react";
+import { AlertCircle, Check, CheckCheck, ChevronRight, Eye, Mail, Trash2, Copy, ExternalLink, FileSpreadsheet, Loader2, RotateCw, ScanSearch, Sparkles, UserPlus, X } from "lucide-react";
 import type { Profile } from "@/data/linkedin";
 import { LIVE } from "@/lib/api/config";
 import { OUTREACH_LABEL, useLinkedInStore, type Generated, type Outreach, type OutreachStatus } from "@/lib/linkedin-store";
@@ -82,6 +82,64 @@ export function MessageBox({ title, meta, text, busy, onSave }: { title: string;
         ? <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={11} className="mt-3 w-full resize-y rounded-lg border border-line bg-bg p-3 text-[14px] leading-[1.65] outline-none focus-visible:border-accent" />
         : <p className={cn("mt-3 whitespace-pre-wrap text-[14px] leading-[1.65] text-fg", busy && "opacity-50")}>{text}</p>}
     </div>
+  );
+}
+
+/** Read-only side-by-side view of the selected profiles' messages, so they can be compared. */
+function CompareDialog({ open, onOpenChange, profiles, generated, outreach, followUp }: { open: boolean; onOpenChange: (o: boolean) => void; profiles: Profile[]; generated: Record<string, Generated>; outreach: Record<string, Outreach>; followUp: boolean }) {
+  const [copied, setCopied] = React.useState<string | null>(null);
+  const copy = async (key: string, text: string) => {
+    try { await navigator.clipboard.writeText(text); } catch {}
+    setCopied(key); window.setTimeout(() => setCopied((c) => (c === key ? null : c)), 1600);
+  };
+  const withMsg = profiles.filter((p) => generated[p.id]).length;
+
+  const Block = ({ k, kind, text, subject }: { k: string; kind: "message" | "followup"; text?: string; subject?: string }) => {
+    const fu = kind === "followup";
+    return (
+      <div className={cn("min-w-0 rounded-xl border p-4", fu ? "border-[color-mix(in_srgb,var(--warn)_35%,var(--line))] bg-[color-mix(in_srgb,var(--warn)_6%,var(--bg))]" : "border-line bg-surface/60")}>
+        <div className="flex items-center justify-between gap-2">
+          <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-semibold", fu ? "bg-[color-mix(in_srgb,var(--warn)_18%,transparent)] text-warn" : "bg-accent-soft text-accent")}>
+            {fu ? <RotateCw className="size-3" /> : <Mail className="size-3" />}{fu ? "Follow-up message" : "Main message"}
+          </span>
+          {text && <button type="button" onClick={() => copy(k, text)} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] text-fg-3 hover:bg-bg hover:text-fg">{copied === k ? <><Check className="size-3 text-ok" />Copied</> : <><Copy className="size-3" />Copy</>}</button>}
+        </div>
+        {subject && <p className="mt-3 text-[14px] font-semibold leading-snug">{subject}</p>}
+        {text ? <p className={cn("whitespace-pre-wrap text-[14px] leading-[1.7] text-fg", subject ? "mt-2" : "mt-3")}>{text}</p> : <p className="mt-3 text-[13px] text-fg-3">{fu ? "No follow-up yet" : "Not generated yet"}</p>}
+      </div>
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent title="Compare messages" description={`${profiles.length} profiles selected · ${withMsg} with a message. Scroll sideways to see every profile.`} className="w-[min(98vw,2400px)] !p-4 sm:!p-5">
+        <div className="mt-4 max-h-[80vh] overflow-auto rounded-xl border border-line bg-bg">
+          <div className="grid min-w-min auto-cols-[minmax(340px,1fr)] grid-flow-col divide-x divide-line">
+            {profiles.map((p, i) => {
+              const g = generated[p.id]; const o = outreach[p.id];
+              return (
+                <section key={p.id} aria-label={p.name} className="flex min-w-0 flex-col">
+                  <header className="sticky top-0 z-10 flex min-h-[76px] items-start gap-3 border-b border-line bg-bg/95 px-4 py-3 backdrop-blur">
+                    <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-soft text-[13px] font-semibold text-accent">{initials(p.name)}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[15px] font-semibold"><span className="num mr-1.5 text-fg-3">{i + 1}.</span>{p.name}</p>
+                      <p className="truncate text-[13px] text-fg-3">{[p.role, p.company].filter(Boolean).join(" at ") || p.headline || "—"}</p>
+                    </div>
+                    {o && o.status !== "none" && <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", TONE[o.status])}>{OUTREACH_LABEL[o.status]}</span>}
+                  </header>
+                  <div className="flex flex-1 flex-col gap-4 p-4">
+                    <Block k={`${p.id}-m`} kind="message" subject={g?.subject || undefined} text={g?.body} />
+                    {followUp && <Block k={`${p.id}-f`} kind="followup" text={g?.followUp} />}
+                    <Link href={`/linkedin-ai/${p.id}`} className="mt-auto inline-flex items-center gap-1 pt-1 text-[13px] text-accent hover:underline">Open profile<ChevronRight className="size-3.5" /></Link>
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </div>
+        <div className="mt-4 flex justify-end"><DialogClose asChild><Button type="button">Close</Button></DialogClose></div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -198,6 +256,7 @@ export function LinkedInList() {
   const [selected, setSelected] = React.useState<string[]>([]);
   const [expanded, setExpanded] = React.useState<string | null>(null);
   const [genOpen, setGenOpen] = React.useState(false);
+  const [cmpOpen, setCmpOpen] = React.useState(false);
   const genOpts = useGenOptions("linkedin");
   const gen = useGenSelection(genOpts);
   const [toast, setToast] = React.useState<string | null>(null);
@@ -238,6 +297,7 @@ export function LinkedInList() {
           <div className="flex items-center gap-2">
             {LIVE && <Button onClick={() => setAddOpen(true)}><UserPlus className="size-3.5" />Add profiles</Button>}
             <Button onClick={scrap} disabled={scraping}>{scraping ? <Loader2 className="size-3.5 animate-spin" /> : <ScanSearch className="size-3.5" />}{scraping ? "Scraping…" : "Scrap Now"}</Button>
+            {selected.length > 1 && <Button onClick={() => setCmpOpen(true)}><Eye className="size-3.5" />View ({selected.length})</Button>}
             {selected.length > 0 && <Button onClick={() => setDelOpen(true)} className="!text-err"><Trash2 className="size-3.5" />Delete ({selected.length})</Button>}
             {selected.length > 0 && <Button onClick={() => { setOutreach(selected, "sent"); flash(`Marked ${selected.length} profile${selected.length === 1 ? "" : "s"} as message sent`); setSelected([]); }}><CheckCheck className="size-3.5" />Mark as sent ({selected.length})</Button>}
             <Button variant="primary" onClick={() => setGenOpen(true)} disabled={generating || selected.length === 0}>
@@ -262,6 +322,7 @@ export function LinkedInList() {
             </div>
           </DialogContent>
         </Dialog>
+        <CompareDialog open={cmpOpen && selected.length > 1} onOpenChange={setCmpOpen} profiles={profiles.filter((p) => selected.includes(p.id))} generated={generated} outreach={outreach} followUp={hub.supportsFollowUp} />
         <AddProfilesDialog open={addOpen} onOpenChange={setAddOpen} onAdd={(input, done) => hub.addProfiles(input, (error, info) => { if (!error) flash(info ?? "Profiles added"); done(error); })} />
         {hub.loadError && <div role="alert" className="mb-3 flex items-start gap-2 rounded-lg bg-[color-mix(in_srgb,var(--err)_12%,transparent)] px-3 py-2 text-[13px] text-err"><AlertCircle className="mt-0.5 size-4 shrink-0" />{hub.loadError}</div>}
         {toast && (
