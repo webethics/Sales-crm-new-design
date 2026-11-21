@@ -2,7 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, Check, ChevronRight, Send, ExternalLink, Loader2, RotateCw, Sparkles, Trash2, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, ChevronRight, Copy, Eye, Mail, Send, ExternalLink, Loader2, RotateCw, Sparkles, Trash2, X } from "lucide-react";
 import type { EmailSet, Reviewer } from "@/data/emailhub";
 import { ekey, useEmailHub } from "@/lib/emailhub-store";
 import { useCampaigns, useGenOptions, useGenSelection } from "@/lib/emailhub-options";
@@ -18,6 +18,82 @@ function ConfidenceTag({ v }: { v: number }) {
   return <span className={cn("num inline-flex h-6 items-center rounded-full px-2.5 text-[12px] font-medium", tone)}>{v}%</span>;
 }
 
+const initials = (n: string) => n.split(" ").map((x) => x[0]).slice(0, 2).join("");
+
+function CompareBlock({ index, text, subject, onSave }: { index: number; text?: string; subject?: string; onSave: (t: string) => void }) {
+  const fu = index > 0;
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState("");
+  const [copied, setCopied] = React.useState(false);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(text ?? ""); } catch {}
+    setCopied(true); window.setTimeout(() => setCopied(false), 1600);
+  };
+  return (
+    <div className={cn("min-w-0 rounded-xl border p-4", fu ? "border-[color-mix(in_srgb,var(--warn)_35%,var(--line))] bg-[color-mix(in_srgb,var(--warn)_6%,var(--bg))]" : "border-line bg-surface/60")}>
+      <div className="flex flex-nowrap items-center justify-between gap-2">
+        <span className={cn("inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-semibold", fu ? "bg-[color-mix(in_srgb,var(--warn)_18%,transparent)] text-warn" : "bg-accent-soft text-accent")}>
+          {fu ? <RotateCw className="size-3" /> : <Mail className="size-3" />}{fu ? (index === 3 ? "Final follow-up" : `Follow-up ${index}`) : "Main email"}
+        </span>
+        {text && (
+          <div className="flex shrink-0 items-center gap-1">
+            {editing && <Button size="sm" onClick={() => setEditing(false)}>Cancel</Button>}
+            <Button size="sm" onClick={() => { if (editing) { if (draft !== text) onSave(draft); setEditing(false); } else { setDraft(text); setEditing(true); } }}>{editing ? "Save" : "Edit"}</Button>
+            <Button size="sm" onClick={copy}>{copied ? <><Check className="size-3.5 text-ok" />Copied</> : <><Copy className="size-3.5" />Copy</>}</Button>
+          </div>
+        )}
+      </div>
+      {subject && <p className="mt-3 text-[14px] font-semibold leading-snug">{subject}</p>}
+      {editing
+        ? <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={12} aria-label={fu ? `Edit follow-up ${index}` : "Edit main email"} className="mt-3 w-full resize-y rounded-lg border border-line bg-bg p-3 text-[14px] leading-[1.65] outline-none focus-visible:border-accent" />
+        : text ? <p className={cn("whitespace-pre-wrap text-[14px] leading-[1.7] text-fg", subject ? "mt-2" : "mt-3")}>{text}</p> : <p className="mt-3 text-[13px] text-fg-3">{fu ? "No follow-up yet" : "Not generated yet"}</p>}
+    </div>
+  );
+}
+
+/** Side-by-side view of the selected reviewers' email sequences (main email + follow-ups). Each email can be edited and copied here. */
+function CompareDialog({ open, onOpenChange, reviewers, sets, pushed, onSave }: { open: boolean; onOpenChange: (o: boolean) => void; reviewers: Reviewer[]; sets: Record<string, EmailSet | undefined>; pushed: Record<string, boolean>; onSave: (reviewerId: string, set: EmailSet, done: (error?: string) => void) => void }) {
+  const [error, setError] = React.useState<string | null>(null);
+  React.useEffect(() => { if (!open) setError(null); }, [open]);
+  const withEmails = reviewers.filter((r) => sets[r.id]).length;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent title="Compare emails" description={`${reviewers.length} reviewers selected · ${withEmails} with generated emails. Scroll sideways to see every reviewer.`} className="w-[min(98vw,2400px)] !p-4 sm:!p-5">
+        {error && <p role="alert" className="mt-3 rounded-lg bg-[color-mix(in_srgb,var(--err)_12%,transparent)] px-3 py-2 text-[13px] text-err">{error}</p>}
+        <div className="mt-4 max-h-[80vh] overflow-auto rounded-xl border border-line bg-bg">
+          <div className="grid min-w-min auto-cols-[minmax(340px,1fr)] grid-flow-col divide-x divide-line">
+            {reviewers.map((rv) => {
+              const set = sets[rv.id];
+              const emails = set?.emails ?? [];
+              const n = Math.max(emails.length, 4);
+              return (
+                <section key={rv.id} aria-label={rv.name} className="flex min-w-0 flex-col">
+                  <header className="sticky top-0 z-10 flex min-h-[76px] items-start gap-3 border-b border-line bg-bg/95 px-4 py-3 backdrop-blur">
+                    <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-soft text-[13px] font-semibold text-accent">{initials(rv.name)}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[15px] font-semibold">{rv.name}</p>
+                      <p className="truncate text-[13px] text-fg-3">{[rv.title, rv.company].filter(Boolean).join(" at ") || "—"}</p>
+                    </div>
+                    {pushed[rv.id] && <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent">Pushed</span>}
+                  </header>
+                  <div className="flex flex-1 flex-col gap-4 p-4">
+                    {Array.from({ length: n }, (_, j) => (
+                      <CompareBlock key={j} index={j} subject={set?.subjects?.[j] || undefined} text={emails[j]}
+                        onSave={(t) => { if (!set) return; setError(null); onSave(rv.id, { ...set, emails: Array.from({ length: n }, (_, x) => (x === j ? t : emails[x] ?? "")) }, (e) => e && setError(e)); }} />
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </div>
+        <div className="mt-4 flex justify-end"><DialogClose asChild><Button type="button">Close</Button></DialogClose></div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function EmailListDetail() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -30,6 +106,7 @@ export function EmailListDetail() {
   const [delOpen, setDelOpen] = React.useState(false);
   const [delOne, setDelOne] = React.useState<string | null>(null);
   const [pushOpen, setPushOpen] = React.useState(false);
+  const [cmpOpen, setCmpOpen] = React.useState(false);
   const [pushing, setPushing] = React.useState(false);
   const [campaignName, setCampaignName] = React.useState("");
   const campaigns = useCampaigns(pushOpen);
@@ -69,6 +146,7 @@ export function EmailListDetail() {
             <p className="num mt-0.5 text-[13px] text-fg-3" aria-live="polite">Uploaded {fmtDate(list.uploadedAt)} · {list.rowCount ?? rows.length} row{(list.rowCount ?? rows.length) === 1 ? "" : "s"}{selected.length > 0 && ` · ${selected.length} selected`}</p>
           </div>
           <div className="flex items-center gap-2">
+            {selected.length > 1 && <Button onClick={() => setCmpOpen(true)}><Eye className="size-3.5" />View ({selected.length})</Button>}
             {selected.length > 0 && <Button onClick={() => setDelOpen(true)} className="!text-err"><Trash2 className="size-3.5" />Delete ({selected.length})</Button>}
             {selected.length > 0 && <Button onClick={() => setPushOpen(true)}><Send className="size-3.5" />Push to Instantly ({selected.length})</Button>}
             <Button variant="primary" onClick={() => setGenOpen(true)} disabled={selected.length === 0 || busy}>
@@ -145,6 +223,11 @@ export function EmailListDetail() {
         {!loadingRows && rows.length === 0 && <p className="py-14 text-center text-[13px] text-fg-3">{list.failed ? `This file could not be imported: ${list.failed}` : "No reviewers in this list."}</p>}
       </div>
 
+      <CompareDialog open={cmpOpen && selected.length > 1} onOpenChange={setCmpOpen}
+        reviewers={rows.filter((x) => selected.includes(x.id))}
+        sets={Object.fromEntries(selected.map((rid) => [rid, hub.emails[ekey(list.id, rid)]]))}
+        pushed={Object.fromEntries(selected.map((rid) => [rid, !!hub.pushed[ekey(list.id, rid)]]))}
+        onSave={(rid, set, done) => hub.setEmails(list.id, rid, set, done)} />
       <GenerateDialog open={genOpen} onOpenChange={setGenOpen} count={selected.length} noun="reviewer"
         onGenerate={(sel) => { const n = selected.length; hub.generate(list.id, selected, sel, (error) => flash(error ?? `Generated content for ${n} reviewer${n === 1 ? "" : "s"} with ${sel.modelLabel}`)); setSelected([]); }} />
       <Dialog open={pushOpen} onOpenChange={setPushOpen}>
